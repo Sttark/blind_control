@@ -3,7 +3,7 @@ Description=Blind Control Web Interface (HTTPS)
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/sttark/Desktop/main.py
+ExecStart=/usr/bin/python3 /home/sttark/Desktop/main.py --http
 WorkingDirectory=/home/sttark/Desktop
 Restart=always
 User=root
