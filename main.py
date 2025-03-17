@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, redirect, url_for
+from flask import Flask, render_template_string, redirect, url_for, request
 import time
 import threading
 import sys
@@ -59,7 +59,8 @@ def index():
     <p><strong>Channel Selection:</strong> {{ channel_status }}</p>
     {% endif %}
     <br>
-    {% for name in button_names %}
+    <!-- Display only Up, Stop, Down buttons -->
+    {% for name in ['Up', 'Stop', 'Down'] %}
         <form action="/press/{{ name }}" method="post">
             <button type="submit">{{ name }}</button>
         </form>
@@ -67,6 +68,16 @@ def index():
     <br>
     <form action="/go_to_all_channels" method="post">
         <button type="submit">Go to All Channels</button>
+    </form>
+    <br>
+    <form action="/select_channel" method="post">
+        <label for="channel">Select a Channel:</label>
+        <select name="channel" id="channel">
+            {% for i in range(1, 17) %}
+                <option value="{{ i }}">Channel {{ i }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Go</button>
     </form>
     ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status)
 
@@ -84,6 +95,16 @@ def select_all_channels():
     threading.Thread(target=press_release).start()
     channel_status = "All Channels"
     print("All channels selected")
+
+# Function to press a button
+def press_button_action(button_name):
+    if button_name in BUTTON_PINS:
+        pin = BUTTON_PINS[button_name]
+        GPIO.setup(pin, GPIO.OUT)
+        GPIO.output(pin, GPIO.LOW)
+        time.sleep(.8)  # 0.8 second press
+        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        print(f"Pressed {button_name} button")
 
 @app.route('/toggle_remote', methods=['POST'])
 def toggle_remote():
@@ -107,11 +128,7 @@ def toggle_remote():
 def press_button(button_name):
     if remote_on and button_name in BUTTON_PINS:
         def press_release():
-            pin = BUTTON_PINS[button_name]
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
-            time.sleep(1)  # 1 second press
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            press_button_action(button_name)
         threading.Thread(target=press_release).start()
     return redirect(url_for('index'))
 
@@ -131,6 +148,50 @@ def go_to_all_channels():
     
     # Select all channels
     select_all_channels()
+    return redirect(url_for('index'))
+
+@app.route('/select_channel', methods=['POST'])
+def select_channel():
+    global channel_status
+    
+    if not remote_on:
+        return redirect(url_for('index'))
+    
+    channel = int(request.form.get('channel', 1))
+    if channel < 1 or channel > 16:
+        channel = 1
+    
+    # Update channel status immediately for UI display
+    channel_status = f"Channel {channel}"
+    print(f"Selected {channel_status}")
+    
+    # Function to navigate to the selected channel
+    def navigate_to_channel():
+        # Cut power to the remote
+        GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
+        time.sleep(2)  # Wait for 2 seconds
+        
+        # Turn power back on
+        for pin in BUTTON_PINS.values():
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+        time.sleep(3)  # Wait for remote to initialize
+        
+        # Channel 1 is the default after power on
+        if channel == 1:
+            pass  # No need to press any buttons
+        elif channel <= 8:
+            # For channels 2-8, press Channel Up channel times (adding one more click)
+            for _ in range(channel):
+                press_button_action("Channel Up")
+                time.sleep(0.5)  # 0.5 second dwell time between button presses
+        else:
+            # For channels 9-16, press Channel Down (19-channel) times (adding two more clicks)
+            for _ in range(19 - channel):
+                press_button_action("Channel Down")
+                time.sleep(0.5)  # 0.5 second dwell time between button presses
+    
+    threading.Thread(target=navigate_to_channel).start()
     return redirect(url_for('index'))
 
 @app.route('/cleanup')
