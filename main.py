@@ -73,4 +73,4 @@ def cleanup():
     return "GPIO Cleaned up."
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, ssl_context=('ssl/cert.pem', 'ssl/key.pem'))
+    app.run(host='0.0.0.0', port=5000, ssl_context=('/home/sttark/Desktop/ssl/cert.pem', '/home/sttark/Desktop/ssl/key.pem'))
