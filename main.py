@@ -1,98 +1,76 @@
+from flask import Flask, render_template_string, redirect, url_for
 import RPi.GPIO as GPIO
-import tkinter as tk
-from tkinter import messagebox
-import threading
 import time
+import threading
 
-# GPIO pin definitions
+app = Flask(__name__)
+
 REMOTE_POWER_PIN = 4
-
 BUTTON_PINS = {
     "Up": 21,
     "Stop": 24,
     "Down": 16,
-    "Channel Down": 25,
-    "Channel Up": 12
+    "Channel Up": 12,
+    "Channel Down": 25
 }
 
-# Track state
-remote_on = False
-
-# GPIO setup
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(REMOTE_POWER_PIN, GPIO.OUT)
+GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
 
-# Set all button pins to input mode with pull-up resistors initially
 for pin in BUTTON_PINS.values():
     GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-# Setup remote power pin
-GPIO.setup(REMOTE_POWER_PIN, GPIO.OUT)
-GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)  # Start with remote off
+remote_on = False
 
-# GUI functions
-def toggle_remote_power():
+@app.route('/')
+def index():
+    return render_template_string('''
+    <h1>Remote Control Web Interface</h1>
+    <form action="/toggle_remote" method="post">
+        <button type="submit">Power</button>
+    </form>
+    <p><strong>Current Remote State:</strong> {{ 'ON' if remote_on else 'OFF' }}</p>
+    <br>
+    {% for name in button_names %}
+        <form action="/press/{{ name }}" method="post">
+            <button type="submit">Press {{ name }}</button>
+        </form>
+    {% endfor %}
+    ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on)
+
+@app.route('/toggle_remote', methods=['POST'])
+def toggle_remote():
     global remote_on
-    if not remote_on:
-        # BEFORE turning on power, reset all button pins to input with pull-up resistors
-        for pin in BUTTON_PINS.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
-        remote_on = True
-        power_button.config(text="Turn Remote OFF")
-        status_label.config(text="Remote is ON")
-    else:
+    if remote_on:
         GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
         remote_on = False
-        power_button.config(text="Turn Remote ON")
-        status_label.config(text="Remote is OFF")
-
-        # Reset all button pins to input with pull-up
+    else:
         for pin in BUTTON_PINS.values():
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+        remote_on = True
+    return redirect(url_for('index'))
 
-def momentary_press(name):
-    if not remote_on:
-        messagebox.showwarning("Remote is OFF", "Turn ON the remote before pressing buttons.")
-        return
+@app.route('/press/<button_name>', methods=['POST'])
+def press_button(button_name):
+    if remote_on and button_name in BUTTON_PINS:
+        def press_release():
+            pin = BUTTON_PINS[button_name]
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, GPIO.LOW)
+            time.sleep(1)  # 1 second press
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        threading.Thread(target=press_release).start()
+    return redirect(url_for('index'))
 
-    def press_and_release():
-        pin = BUTTON_PINS[name]
-        GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.LOW)
-        status_label.config(text=f"{name} button is PRESSED")
-
-        time.sleep(1)  # 1 second press duration
-
-        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        status_label.config(text=f"{name} button is RELEASED")
-
-    # Run in a thread to avoid freezing the GUI
-    threading.Thread(target=press_and_release).start()
-
-def cleanup_and_exit():
+@app.route('/cleanup')
+def cleanup():
     GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
     for pin in BUTTON_PINS.values():
         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.cleanup()
-    root.destroy()
+    return "GPIO Cleaned up."
 
-# Build GUI
-root = tk.Tk()
-root.title("Remote Control Panel")
-
-power_button = tk.Button(root, text="Turn Remote ON", width=30, command=toggle_remote_power)
-power_button.pack(pady=10)
-
-for name in BUTTON_PINS:
-    btn = tk.Button(root, text=name, width=30, command=lambda n=name: momentary_press(n))
-    btn.pack(pady=5)
-
-status_label = tk.Label(root, text="Remote is OFF", fg="blue")
-status_label.pack(pady=10)
-
-exit_button = tk.Button(root, text="Exit and Cleanup", width=30, command=cleanup_and_exit)
-exit_button.pack(pady=20)
-
-root.protocol("WM_DELETE_WINDOW", cleanup_and_exit)
-root.mainloop()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
