@@ -1,0 +1,14 @@
+[Unit]
+Description=Blind Control Web Interface (HTTPS)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /sttark/desktop/main.py
+WorkingDirectory=/sttark/desktop
+Restart=always
+User=root
+# Ensure the service has access to the SSL certificates
+Environment=SSL_CERT_DIR=/sttark/desktop/ssl
+
+[Install]
+WantedBy=multi-user.target
