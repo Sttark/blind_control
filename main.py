@@ -50,35 +50,194 @@ monitor_thread.start()
 @app.route('/')
 def index():
     return render_template_string('''
-    <h1>Remote Control Web Interface</h1>
-    <form action="/toggle_remote" method="post">
-        <button type="submit">Power</button>
-    </form>
-    <p><strong>Current Remote State:</strong> {{ 'ON' if remote_on else 'OFF' }}</p>
-    {% if remote_on %}
-    <p><strong>Channel Selection:</strong> {{ channel_status }}</p>
-    {% endif %}
-    <br>
-    <!-- Display only Up, Stop, Down buttons -->
-    {% for name in ['Up', 'Stop', 'Down'] %}
-        <form action="/press/{{ name }}" method="post">
-            <button type="submit">{{ name }}</button>
-        </form>
-    {% endfor %}
-    <br>
-    <form action="/go_to_all_channels" method="post">
-        <button type="submit">Go to All Channels</button>
-    </form>
-    <br>
-    <form action="/select_channel" method="post">
-        <label for="channel">Select a Channel:</label>
-        <select name="channel" id="channel">
-            {% for i in range(1, 17) %}
-                <option value="{{ i }}">Channel {{ i }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit">Go</button>
-    </form>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Blind Control</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-family: Arial, sans-serif;
+            }
+            body {
+                margin: 0;
+                padding: 16px;
+                background-color: #f5f5f5;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+            h1 {
+                text-align: center;
+                color: #333;
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            .status-panel {
+                background-color: #fff;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .control-panel {
+                background-color: #fff;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .button-group {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 15px;
+            }
+            button {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 20px;
+                font-size: 16px;
+                cursor: pointer;
+                width: 100%;
+                margin: 5px 0;
+                transition: background-color 0.3s;
+            }
+            button:hover {
+                background-color: #45a049;
+            }
+            .power-button {
+                background-color: #f44336;
+            }
+            .power-button:hover {
+                background-color: #d32f2f;
+            }
+            .direction-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+            .direction-buttons .button-row {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+            }
+            .direction-buttons button {
+                flex: 1;
+                margin: 0;
+            }
+            .up-button {
+                background-color: #2196F3;
+            }
+            .up-button:hover {
+                background-color: #1976D2;
+            }
+            .stop-button {
+                background-color: #FF9800;
+            }
+            .stop-button:hover {
+                background-color: #F57C00;
+            }
+            .down-button {
+                background-color: #2196F3;
+            }
+            .down-button:hover {
+                background-color: #1976D2;
+            }
+            .channel-form {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .channel-form .input-row {
+                display: flex;
+                gap: 10px;
+            }
+            select {
+                flex: 1;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                font-size: 16px;
+            }
+            .channel-form button {
+                flex: 0 0 80px;
+            }
+            .status-indicator {
+                display: inline-block;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                margin-right: 8px;
+            }
+            .status-on {
+                background-color: #4CAF50;
+            }
+            .status-off {
+                background-color: #f44336;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Blind Control</h1>
+        
+        <div class="status-panel">
+            <p>
+                <span class="status-indicator {{ 'status-on' if remote_on else 'status-off' }}"></span>
+                <strong>Remote:</strong> {{ 'ON' if remote_on else 'OFF' }}
+            </p>
+            {% if remote_on %}
+            <p><strong>Channel:</strong> {{ channel_status }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="control-panel">
+            <form action="/toggle_remote" method="post">
+                <button type="submit" class="power-button">Power {{ 'OFF' if remote_on else 'ON' }}</button>
+            </form>
+            
+            {% if remote_on %}
+            <h2>Blind Controls</h2>
+            <div class="direction-buttons">
+                <div class="button-row">
+                    <form action="/press/Up" method="post" style="flex: 1;">
+                        <button type="submit" class="up-button">Up</button>
+                    </form>
+                </div>
+                <div class="button-row">
+                    <form action="/press/Stop" method="post" style="flex: 1;">
+                        <button type="submit" class="stop-button">Stop</button>
+                    </form>
+                </div>
+                <div class="button-row">
+                    <form action="/press/Down" method="post" style="flex: 1;">
+                        <button type="submit" class="down-button">Down</button>
+                    </form>
+                </div>
+            </div>
+            
+            <h2>Channel Selection</h2>
+            <form action="/go_to_all_channels" method="post">
+                <button type="submit">All Channels</button>
+            </form>
+            
+            <form action="/select_channel" method="post" class="channel-form">
+                <div class="input-row">
+                    <select name="channel" id="channel">
+                        {% for i in range(1, 17) %}
+                            <option value="{{ i }}">Channel {{ i }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Go</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </body>
+    </html>
     ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status)
 
 # Function to select all channels by pressing Channel Down button
