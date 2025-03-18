@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, redirect, url_for, request
+from flask import Flask, render_template_string, redirect, url_for, request, jsonify
 import time
 import threading
 import sys
@@ -24,6 +24,7 @@ for pin in BUTTON_PINS.values():
 app = Flask(__name__)
 remote_on = False
 channel_status = "All Channels"  # Default channel status
+channel_selection_in_progress = False  # Flag to track if channel selection is in progress
 
 # Function to check the actual power state of the remote
 def check_remote_power_state():
@@ -55,7 +56,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Blind Control</title>
+        <title>South Building Blind Control</title>
         <style>
             * {
                 box-sizing: border-box;
@@ -108,11 +109,19 @@ def index():
             button:hover {
                 background-color: #45a049;
             }
+            button:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
+                opacity: 0.7;
+            }
             .power-button {
                 background-color: #f44336;
             }
             .power-button:hover {
                 background-color: #d32f2f;
+            }
+            .power-button:disabled {
+                background-color: #ffcccb;
             }
             .direction-buttons {
                 display: flex;
@@ -135,17 +144,35 @@ def index():
             .up-button:hover {
                 background-color: #1976D2;
             }
+            .up-button:disabled {
+                background-color: #bbdefb;
+            }
             .stop-button {
                 background-color: #FF9800;
             }
             .stop-button:hover {
                 background-color: #F57C00;
             }
+            .stop-button:disabled {
+                background-color: #ffe0b2;
+            }
             .down-button {
                 background-color: #2196F3;
             }
             .down-button:hover {
                 background-color: #1976D2;
+            }
+            .down-button:disabled {
+                background-color: #bbdefb;
+            }
+            .pair-button {
+                background-color: #9C27B0;
+            }
+            .pair-button:hover {
+                background-color: #7B1FA2;
+            }
+            .pair-button:disabled {
+                background-color: #E1BEE7;
             }
             .channel-form {
                 display: flex;
@@ -163,6 +190,10 @@ def index():
                 border-radius: 8px;
                 font-size: 16px;
             }
+            select:disabled {
+                background-color: #f5f5f5;
+                cursor: not-allowed;
+            }
             .channel-form button {
                 flex: 0 0 80px;
             }
@@ -179,10 +210,43 @@ def index():
             .status-off {
                 background-color: #f44336;
             }
+            .processing-alert {
+                background-color: #fff3cd;
+                color: #856404;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 15px 0;
+                text-align: center;
+                font-weight: bold;
+                border: 1px solid #ffeeba;
+            }
         </style>
+        <script>
+            // Function to check if channel selection is complete
+            function checkChannelSelectionStatus() {
+                fetch('/channel_selection_status')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.in_progress) {
+                            // If still in progress, check again in 1 second
+                            setTimeout(checkChannelSelectionStatus, 1000);
+                        } else {
+                            // If complete, reload the page to update UI
+                            window.location.reload();
+                        }
+                    });
+            }
+
+            // Start checking if we're in channel selection mode
+            {% if channel_selection_in_progress %}
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(checkChannelSelectionStatus, 1000);
+            });
+            {% endif %}
+        </script>
     </head>
     <body>
-        <h1>Blind Control</h1>
+        <h1>South Building Blind Control</h1>
         
         <div class="status-panel">
             <p>
@@ -194,9 +258,15 @@ def index():
             {% endif %}
         </div>
         
+        {% if channel_selection_in_progress %}
+        <div class="processing-alert">
+            <p>Channel selection in progress... Please wait.</p>
+        </div>
+        {% endif %}
+        
         <div class="control-panel">
             <form action="/toggle_remote" method="post">
-                <button type="submit" class="power-button">Power {{ 'OFF' if remote_on else 'ON' }}</button>
+                <button type="submit" class="power-button" {% if channel_selection_in_progress %}disabled{% endif %}>Power {{ 'OFF' if remote_on else 'ON' }}</button>
             </form>
             
             {% if remote_on %}
@@ -204,41 +274,46 @@ def index():
             <div class="direction-buttons">
                 <div class="button-row">
                     <form action="/press/Up" method="post" style="flex: 1;">
-                        <button type="submit" class="up-button">Up</button>
+                        <button type="submit" class="up-button" {% if channel_selection_in_progress %}disabled{% endif %}>Up</button>
                     </form>
                 </div>
                 <div class="button-row">
                     <form action="/press/Stop" method="post" style="flex: 1;">
-                        <button type="submit" class="stop-button">Stop</button>
+                        <button type="submit" class="stop-button" {% if channel_selection_in_progress %}disabled{% endif %}>Stop</button>
                     </form>
                 </div>
                 <div class="button-row">
                     <form action="/press/Down" method="post" style="flex: 1;">
-                        <button type="submit" class="down-button">Down</button>
+                        <button type="submit" class="down-button" {% if channel_selection_in_progress %}disabled{% endif %}>Down</button>
+                    </form>
+                </div>
+                <div class="button-row">
+                    <form action="/pair" method="post" style="flex: 1;">
+                        <button type="submit" class="pair-button" {% if channel_selection_in_progress %}disabled{% endif %}>Pair</button>
                     </form>
                 </div>
             </div>
             
             <h2>Channel Selection</h2>
             <form action="/go_to_all_channels" method="post">
-                <button type="submit">All Channels</button>
+                <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>All Channels</button>
             </form>
             
             <form action="/select_channel" method="post" class="channel-form">
                 <div class="input-row">
-                    <select name="channel" id="channel">
+                    <select name="channel" id="channel" {% if channel_selection_in_progress %}disabled{% endif %}>
                         {% for i in range(1, 17) %}
                             <option value="{{ i }}">Channel {{ i }}</option>
                         {% endfor %}
                     </select>
-                    <button type="submit">Go</button>
+                    <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>Go</button>
                 </div>
             </form>
             {% endif %}
         </div>
     </body>
     </html>
-    ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status)
+    ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status, channel_selection_in_progress=channel_selection_in_progress)
 
 # Function to select all channels by pressing Channel Down button
 def select_all_channels():
@@ -268,6 +343,11 @@ def press_button_action(button_name):
 @app.route('/toggle_remote', methods=['POST'])
 def toggle_remote():
     global remote_on
+    
+    # Don't allow toggling if channel selection is in progress
+    if channel_selection_in_progress:
+        return redirect(url_for('index'))
+        
     if remote_on:
         GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
         # The monitor_thread will update remote_on
@@ -285,35 +365,81 @@ def toggle_remote():
 
 @app.route('/press/<button_name>', methods=['POST'])
 def press_button(button_name):
+    # Don't allow button presses if channel selection is in progress
+    if channel_selection_in_progress:
+        return redirect(url_for('index'))
+        
     if remote_on and button_name in BUTTON_PINS:
         def press_release():
             press_button_action(button_name)
         threading.Thread(target=press_release).start()
     return redirect(url_for('index'))
 
+@app.route('/pair', methods=['POST'])
+def pair_button():
+    # Don't allow button presses if channel selection is in progress
+    if channel_selection_in_progress:
+        return redirect(url_for('index'))
+        
+    if remote_on and "Up" in BUTTON_PINS:
+        def press_hold_release():
+            pin = BUTTON_PINS["Up"]
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, GPIO.LOW)
+            time.sleep(5)  # Hold for 5 seconds
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            print("Held Up button for 5 seconds (Pairing)")
+        threading.Thread(target=press_hold_release).start()
+    return redirect(url_for('index'))
+
+@app.route('/channel_selection_status')
+def channel_selection_status():
+    return jsonify({'in_progress': channel_selection_in_progress})
+
 @app.route('/go_to_all_channels', methods=['POST'])
 def go_to_all_channels():
-    # Cut power to the remote
-    GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
-    time.sleep(2)  # Wait for 2 seconds
+    global channel_selection_in_progress
     
-    # Turn power back on
-    for pin in BUTTON_PINS.values():
-        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
-    time.sleep(3)  # Wait for remote to initialize
+    # Don't allow channel selection if already in progress
+    if channel_selection_in_progress:
+        return redirect(url_for('index'))
     
-    # The monitor_thread will update remote_on automatically
+    # Set flag to indicate channel selection is in progress
+    channel_selection_in_progress = True
     
-    # Select all channels
-    select_all_channels()
+    # Function to handle the channel selection process
+    def process_all_channels():
+        global channel_selection_in_progress
+        try:
+            # Cut power to the remote
+            GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
+            time.sleep(2)  # Wait for 2 seconds
+            
+            # Turn power back on
+            for pin in BUTTON_PINS.values():
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+            time.sleep(3)  # Wait for remote to initialize
+            
+            # The monitor_thread will update remote_on automatically
+            
+            # Select all channels
+            select_all_channels()
+        finally:
+            # Reset the flag when channel selection is complete
+            channel_selection_in_progress = False
+            print("All channels selection complete")
+    
+    # Start the process in a background thread
+    threading.Thread(target=process_all_channels).start()
     return redirect(url_for('index'))
 
 @app.route('/select_channel', methods=['POST'])
 def select_channel():
-    global channel_status
+    global channel_status, channel_selection_in_progress
     
-    if not remote_on:
+    # Don't allow channel selection if not powered on or already in progress
+    if not remote_on or channel_selection_in_progress:
         return redirect(url_for('index'))
     
     channel = int(request.form.get('channel', 1))
@@ -324,32 +450,42 @@ def select_channel():
     channel_status = f"Channel {channel}"
     print(f"Selected {channel_status}")
     
+    # Set the flag to indicate channel selection is in progress
+    channel_selection_in_progress = True
+    
     # Function to navigate to the selected channel
     def navigate_to_channel():
-        # Cut power to the remote
-        GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
-        time.sleep(2)  # Wait for 2 seconds
-        
-        # Turn power back on
-        for pin in BUTTON_PINS.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
-        time.sleep(3)  # Wait for remote to initialize
-        
-        # Channel 1 is the default after power on
-        if channel == 1:
-            pass  # No need to press any buttons
-        elif channel <= 8:
-            # For channels 2-8, press Channel Up channel times (adding one more click)
-            for _ in range(channel):
-                press_button_action("Channel Up")
-                time.sleep(0.5)  # 0.5 second dwell time between button presses
-        else:
-            # For channels 9-16, press Channel Down (19-channel) times (adding two more clicks)
-            for _ in range(19 - channel):
-                press_button_action("Channel Down")
-                time.sleep(0.5)  # 0.5 second dwell time between button presses
+        global channel_selection_in_progress
+        try:
+            # Cut power to the remote
+            GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
+            time.sleep(2)  # Wait for 2 seconds
+            
+            # Turn power back on
+            for pin in BUTTON_PINS.values():
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+            time.sleep(3)  # Wait for remote to initialize
+            
+            # Channel 1 is the default after power on
+            if channel == 1:
+                pass  # No need to press any buttons
+            elif channel <= 8:
+                # For channels 2-8, press Channel Up channel times (adding one more click)
+                for _ in range(channel):
+                    press_button_action("Channel Up")
+                    time.sleep(0.5)  # 0.5 second dwell time between button presses
+            else:
+                # For channels 9-16, press Channel Down (19-channel) times (adding two more clicks)
+                for _ in range(19 - channel):
+                    press_button_action("Channel Down")
+                    time.sleep(0.5)  # 0.5 second dwell time between button presses
+        finally:
+            # Reset the flag when channel selection is complete
+            channel_selection_in_progress = False
+            print(f"Channel selection complete: {channel_status}")
     
+    # Start the channel selection process in a background thread
     threading.Thread(target=navigate_to_channel).start()
     return redirect(url_for('index'))
 
