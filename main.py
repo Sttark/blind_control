@@ -220,6 +220,50 @@ def index():
                 font-weight: bold;
                 border: 1px solid #ffeeba;
             }
+            /* Advanced dropdown styles */
+            .advanced-dropdown {
+                position: relative;
+                display: inline-block;
+                width: 100%;
+                margin-top: 15px;
+            }
+            .advanced-dropdown-btn {
+                background-color: #673AB7;
+                color: white;
+                width: 100%;
+                text-align: left;
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .advanced-dropdown-btn:hover {
+                background-color: #5E35B1;
+            }
+            .advanced-dropdown-btn:after {
+                content: "▼";
+                font-size: 12px;
+                margin-left: 10px;
+            }
+            .advanced-dropdown-btn.active:after {
+                content: "▲";
+            }
+            .advanced-dropdown-content {
+                display: none;
+                background-color: #f9f9f9;
+                border-radius: 8px;
+                padding: 15px;
+                margin-top: 5px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border: 1px solid #ddd;
+            }
+            .advanced-dropdown-content.show {
+                display: block;
+            }
         </style>
         <script>
             // Function to check if channel selection is complete
@@ -243,6 +287,28 @@ def index():
                 setTimeout(checkChannelSelectionStatus, 1000);
             });
             {% endif %}
+            
+            // Advanced dropdown toggle function
+            function toggleAdvancedDropdown() {
+                const dropdownContent = document.getElementById("advancedDropdownContent");
+                const dropdownBtn = document.getElementById("advancedDropdownBtn");
+                dropdownContent.classList.toggle("show");
+                dropdownBtn.classList.toggle("active");
+            }
+            
+            // Close dropdown if user clicks outside of it
+            document.addEventListener('click', function(event) {
+                const dropdown = document.getElementById("advancedDropdown");
+                const dropdownBtn = document.getElementById("advancedDropdownBtn");
+                
+                if (!dropdown.contains(event.target) && !dropdownBtn.contains(event.target)) {
+                    const dropdownContent = document.getElementById("advancedDropdownContent");
+                    if (dropdownContent.classList.contains("show")) {
+                        dropdownContent.classList.remove("show");
+                        dropdownBtn.classList.remove("active");
+                    }
+                }
+            });
         </script>
     </head>
     <body>
@@ -287,28 +353,35 @@ def index():
                         <button type="submit" class="down-button" {% if channel_selection_in_progress %}disabled{% endif %}>Down</button>
                     </form>
                 </div>
-                <div class="button-row">
-                    <form action="/pair" method="post" style="flex: 1;">
+            </div>
+            
+            <div id="advancedDropdown" class="advanced-dropdown">
+                <button id="advancedDropdownBtn" type="button" class="advanced-dropdown-btn" onclick="toggleAdvancedDropdown()">
+                    Advanced Options
+                </button>
+                <div id="advancedDropdownContent" class="advanced-dropdown-content">
+                    <h3>Pairing</h3>
+                    <form action="/pair" method="post" style="margin-bottom: 20px;">
                         <button type="submit" class="pair-button" {% if channel_selection_in_progress %}disabled{% endif %}>Pair</button>
+                    </form>
+                    
+                    <h3>Channel Selection</h3>
+                    <form action="/go_to_all_channels" method="post" style="margin-bottom: 10px;">
+                        <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>All Channels</button>
+                    </form>
+                    
+                    <form action="/select_channel" method="post" class="channel-form">
+                        <div class="input-row">
+                            <select name="channel" id="channel" {% if channel_selection_in_progress %}disabled{% endif %}>
+                                {% for i in range(1, 17) %}
+                                    <option value="{{ i }}">Channel {{ i }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>Go</button>
+                        </div>
                     </form>
                 </div>
             </div>
-            
-            <h2>Channel Selection</h2>
-            <form action="/go_to_all_channels" method="post">
-                <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>All Channels</button>
-            </form>
-            
-            <form action="/select_channel" method="post" class="channel-form">
-                <div class="input-row">
-                    <select name="channel" id="channel" {% if channel_selection_in_progress %}disabled{% endif %}>
-                        {% for i in range(1, 17) %}
-                            <option value="{{ i }}">Channel {{ i }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" {% if channel_selection_in_progress %}disabled{% endif %}>Go</button>
-                </div>
-            </form>
             {% endif %}
         </div>
     </body>
