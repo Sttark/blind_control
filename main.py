@@ -4,6 +4,9 @@ import threading
 import sys
 import os
 import RPi.GPIO as GPIO
+import schedule
+from astral import Astral
+from datetime import datetime, timedelta
 
 REMOTE_POWER_PIN = 4
 BUTTON_PINS = {
@@ -20,6 +23,94 @@ GPIO.output(REMOTE_POWER_PIN, GPIO.LOW)
 
 for pin in BUTTON_PINS.values():
     GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Function to get sunset time for the current day
+def get_sunset_time():
+    # Initialize Astral
+    a = Astral()
+    # New York City coordinates (approximate for East Coast)
+    # You may need to adjust these coordinates for your specific location
+    city = a['New York']
+    
+    # Get today's sun information
+    sun_info = city.sun(date=datetime.now(), local=True)
+    sunset = sun_info['sunset']
+    
+    print(f"Today's sunset time: {sunset.strftime('%H:%M:%S')}")
+    return sunset
+
+# Function to lower the blinds
+def lower_blinds():
+    print("Scheduled task: Lowering blinds 2.5 hours before sunset")
+    
+    # Make sure remote is on
+    if not check_remote_power_state():
+        # Turn on remote
+        for pin in BUTTON_PINS.values():
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+        time.sleep(3)  # Wait for remote to initialize
+        select_all_channels()
+        time.sleep(1)
+    
+    # Press the Down button
+    press_button_action("Down")
+    print("Blinds lowered")
+
+# Function to raise the blinds
+def raise_blinds():
+    print("Scheduled task: Raising blinds 10 minutes before sunset")
+    
+    # Make sure remote is on
+    if not check_remote_power_state():
+        # Turn on remote
+        for pin in BUTTON_PINS.values():
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.output(REMOTE_POWER_PIN, GPIO.HIGH)
+        time.sleep(3)  # Wait for remote to initialize
+        select_all_channels()
+        time.sleep(1)
+    
+    # Press the Up button
+    press_button_action("Up")
+    print("Blinds raised")
+
+# Function to schedule blind actions for the day
+def schedule_blind_actions():
+    # Clear any existing jobs
+    schedule.clear()
+    
+    # Get today's sunset time
+    sunset = get_sunset_time()
+    
+    # Calculate times for lowering and raising blinds
+    lower_time = sunset - timedelta(hours=2, minutes=30)
+    raise_time = sunset - timedelta(minutes=10)
+    
+    # Format times for scheduler (HH:MM format)
+    lower_time_str = lower_time.strftime("%H:%M")
+    raise_time_str = raise_time.strftime("%H:%M")
+    
+    # Schedule the jobs
+    schedule.every().day.at(lower_time_str).do(lower_blinds)
+    schedule.every().day.at(raise_time_str).do(raise_blinds)
+    
+    print(f"Scheduled to lower blinds at {lower_time_str} (2.5 hours before sunset)")
+    print(f"Scheduled to raise blinds at {raise_time_str} (10 minutes before sunset)")
+
+# Function to run the scheduler
+def run_scheduler():
+    # Schedule blind actions for today
+    schedule_blind_actions()
+    
+    # Run the scheduler
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute
+
+# Start the scheduler in a background thread
+scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+scheduler_thread.start()
 
 app = Flask(__name__)
 remote_on = False
@@ -335,6 +426,12 @@ def index():
                 <button type="submit" class="power-button" {% if channel_selection_in_progress %}disabled{% endif %}>Power {{ 'OFF' if remote_on else 'ON' }}</button>
             </form>
             
+            <div style="margin-top: 10px;">
+                <a href="/schedule" style="display: block; text-align: center; background-color: #673AB7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-size: 16px;">
+                    View Sunset Schedule
+                </a>
+            </div>
+            
             {% if remote_on %}
             <h2>Blind Controls</h2>
             <div class="direction-buttons">
@@ -569,6 +666,137 @@ def cleanup():
         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.cleanup()
     return "GPIO Cleaned up."
+
+@app.route('/schedule')
+def view_schedule():
+    # Get sunset time
+    sunset = get_sunset_time()
+    
+    # Calculate scheduled times
+    lower_time = sunset - timedelta(hours=2, minutes=30)
+    raise_time = sunset - timedelta(minutes=10)
+    
+    # Format times for display
+    sunset_str = sunset.strftime("%I:%M %p")
+    lower_time_str = lower_time.strftime("%I:%M %p")
+    raise_time_str = raise_time.strftime("%I:%M %p")
+    
+    # Get all scheduled jobs
+    jobs = schedule.get_jobs()
+    job_times = []
+    for job in jobs:
+        job_times.append(job.next_run.strftime("%I:%M %p"))
+    
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Blind Schedule</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-family: Arial, sans-serif;
+            }
+            body {
+                margin: 0;
+                padding: 16px;
+                background-color: #f5f5f5;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+            h1 {
+                text-align: center;
+                color: #333;
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            .schedule-panel {
+                background-color: #fff;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .schedule-item {
+                margin-bottom: 15px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #eee;
+            }
+            .schedule-item:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            .time {
+                font-weight: bold;
+                color: #2196F3;
+            }
+            .action-buttons {
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+            }
+            .action-buttons a {
+                flex: 1;
+                display: block;
+                background-color: #4CAF50;
+                color: white;
+                text-align: center;
+                padding: 12px 20px;
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: background-color 0.3s;
+            }
+            .action-buttons a:hover {
+                background-color: #45a049;
+            }
+            .action-buttons .refresh-button {
+                background-color: #FF9800;
+            }
+            .action-buttons .refresh-button:hover {
+                background-color: #F57C00;
+            }
+            .action-buttons .home-button {
+                background-color: #2196F3;
+            }
+            .action-buttons .home-button:hover {
+                background-color: #1976D2;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Blind Schedule</h1>
+        
+        <div class="schedule-panel">
+            <div class="schedule-item">
+                <p><strong>Today's Sunset:</strong> <span class="time">{{ sunset_time }}</span></p>
+            </div>
+            
+            <div class="schedule-item">
+                <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> (2.5 hours before sunset)</p>
+            </div>
+            
+            <div class="schedule-item">
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> (10 minutes before sunset)</p>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/reschedule" class="refresh-button">Refresh Schedule</a>
+            <a href="/" class="home-button">Back to Controls</a>
+        </div>
+    </body>
+    </html>
+    ''', sunset_time=sunset_str, lower_time=lower_time_str, raise_time=raise_time_str)
+
+@app.route('/reschedule')
+def reschedule():
+    # Reschedule the blind actions
+    schedule_blind_actions()
+    return redirect(url_for('view_schedule'))
 
 
 if __name__ == '__main__':
