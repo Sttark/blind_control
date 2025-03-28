@@ -59,7 +59,10 @@ The system uses the following GPIO pins (BCM mode):
 
 ## Usage
 
-1. Access the web interface by navigating to `http://blind-control-south.local:5000/` in your web browser
+1. Access the web interface using one of the following methods:
+   - When on a Sttark network: `http://192.168.4.202:5000/`
+   - When not on a Sttark network: Connect to ZeroTier and use `http://192.168.194.210:5000/`
+   - Alternatively: `http://blind-control-south.local:5000/` (mDNS)
 2. Use the interface buttons to control your blinds:
    - Power button turns the remote on/off
    - Direction buttons (Up/Stop/Down) control blind movement
@@ -81,7 +84,7 @@ To run the application in development mode:
 python3 main.py
 ```
 
-The web server will start on port 5000 and be accessible at `http://blind-control-south.local:5000/`.
+The web server will start on port 5000 and be accessible via the same URLs mentioned in the Usage section.
 
 ## Customization
 
