@@ -6,7 +6,7 @@ After=network.target
 ExecStart=/usr/bin/python3 /home/sttark/blind_control/hub/main.py
 WorkingDirectory=/home/sttark/blind_control/hub
 Restart=always
-User=root
+User=sttark
 
 [Install]
 WantedBy=multi-user.target
