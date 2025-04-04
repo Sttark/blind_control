@@ -4,7 +4,9 @@ A Raspberry Pi-based web interface for controlling motorized window blinds remot
 
 ## Overview
 
-This project provides a web-based control system for motorized window blinds in the South Building. It uses a Raspberry Pi to interface with a physical remote control through GPIO pins, allowing users to control blinds from any device with a web browser on the local network.
+This project provides a web-based control system for motorized window blinds. It uses a Raspberry Pi to interface with a physical remote control through GPIO pins, allowing users to control blinds from any device with a web browser on the local network.
+
+The system now supports multiple controllers across different locations with a central hub interface.
 
 ## Repository
 
@@ -90,11 +92,77 @@ The web server will start on port 5000 and be accessible via the same URLs menti
 
 You can customize the GPIO pin assignments by modifying the `REMOTE_POWER_PIN` and `BUTTON_PINS` variables in `main.py`.
 
+## Multi-Controller Setup
+
+This project now supports multiple blind controllers across different locations with a central hub interface.
+
+### Hub Features
+
+- **Central Dashboard**: A single page that lists all blind controllers
+- **Easy Navigation**: Click on any controller to access its interface
+- **Admin Panel**: Add, edit, or remove blind controllers through a simple interface
+
+### Setting Up the Hub
+
+1. Navigate to the hub directory:
+   ```
+   cd blind_control/hub
+   ```
+
+2. Install the required dependencies:
+   ```
+   pip3 install flask
+   ```
+
+3. Set up the systemd service for the hub:
+   ```
+   sudo cp blind_control_hub.service /etc/systemd/system/
+   sudo systemctl enable blind_control_hub
+   sudo systemctl start blind_control_hub
+   ```
+
+4. Access the hub interface:
+   ```
+   http://blind-control-hub.local:5001/
+   ```
+
+### Deploying to a New Raspberry Pi
+
+A deployment script is included to make it easy to set up the blind control system on a new Raspberry Pi:
+
+1. SSH into your Raspberry Pi:
+   ```
+   ssh pi@your-raspberry-pi-ip
+   ```
+
+2. Clone the repository:
+   ```
+   git clone https://github.com/Sttark/blind_control.git
+   cd blind_control
+   ```
+
+3. Make the deployment script executable:
+   ```
+   chmod +x deploy.sh
+   ```
+
+4. Run the deployment script:
+   ```
+   sudo ./deploy.sh
+   ```
+
+5. Follow the prompts to configure your blind controller with a location name.
+
+6. Once installation is complete, add the new controller to your hub using the provided details.
+
+For more details on the hub setup and usage, see the [Hub README](hub/README.md).
+
 ## Troubleshooting
 
 - If the web interface is not accessible, ensure the service is running with `sudo systemctl status blind_control`
 - If buttons are not responding correctly, verify the GPIO wiring and pin assignments
 - To reset the GPIO pins, access the `/cleanup` endpoint in your browser
+- If the hub interface is not accessible, check its service status with `sudo systemctl status blind_control_hub`
 
 ## Author
 
