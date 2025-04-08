@@ -5,8 +5,15 @@ import sys
 import os
 import RPi.GPIO as GPIO
 import schedule
+import requests
 from astral import Astral
 from datetime import datetime, timedelta
+
+# WeatherAPI.com configuration
+WEATHER_API_KEY = "b8c328a0f8be42ff936210148250404"
+LOCATION = "29607"  # Zip code
+CLOUD_THRESHOLD = 15  # Consider sunny if cloud cover is below 15%
+MONITORING_INTERVAL = 10  # Check weather every 10 minutes (in minutes)
 
 REMOTE_POWER_PIN = 4
 BUTTON_PINS = {
@@ -91,11 +98,11 @@ def schedule_blind_actions():
     lower_time_str = lower_time.strftime("%H:%M")
     raise_time_str = raise_time.strftime("%H:%M")
     
-    # Schedule the jobs
-    schedule.every().day.at(lower_time_str).do(lower_blinds)
+    # Schedule the jobs - use cloud-aware version for lowering blinds
+    schedule.every().day.at(lower_time_str).do(lower_blinds_with_cloud_check)
     schedule.every().day.at(raise_time_str).do(raise_blinds)
     
-    print(f"Scheduled to lower blinds at {lower_time_str} (2.5 hours before sunset)")
+    print(f"Scheduled to lower blinds at {lower_time_str} (2.5 hours before sunset, if not too cloudy)")
     print(f"Scheduled to raise blinds at {raise_time_str} (10 minutes before sunset)")
 
 # Function to run the scheduler
@@ -112,10 +119,90 @@ def run_scheduler():
 scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
 scheduler_thread.start()
 
+# Function to get current cloud cover percentage
+def get_cloud_cover():
+    try:
+        url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={LOCATION}&aqi=no"
+        response = requests.get(url)
+        data = response.json()
+        
+        # Get cloud cover percentage (0-100)
+        cloud_cover = data['current']['cloud']
+        
+        # Also get condition text for logging
+        condition = data['current']['condition']['text']
+        
+        print(f"Current conditions: {condition}, Cloud cover: {cloud_cover}%")
+        return cloud_cover, condition
+    except Exception as e:
+        print(f"Error checking weather: {e}")
+        return None, None
+
+# Function to determine if it's overcast
+def is_overcast():
+    cloud_cover, _ = get_cloud_cover()
+    if cloud_cover is not None:
+        return cloud_cover >= CLOUD_THRESHOLD
+    return False
+
+# Function to determine if we're in the monitoring period (5 PM to sunset)
+def is_monitoring_time():
+    now = datetime.now()
+    
+    # Get today's sunset time
+    sunset = get_sunset_time()
+    
+    # Define start time (5 PM)
+    start_time = now.replace(hour=17, minute=0, second=0, microsecond=0)
+    
+    return start_time <= now <= sunset
+
+# Modified lower_blinds function to check cloud cover
+def lower_blinds_with_cloud_check():
+    # Check if it's cloudy (above threshold)
+    if is_overcast():
+        print(f"Cloud cover is above threshold ({CLOUD_THRESHOLD}%). Skipping blind lowering.")
+        return
+    
+    # If sunny (below threshold), proceed with lowering blinds
+    lower_blinds()
+
+# Function to monitor cloud cover and control blinds
+def monitor_cloud_cover():
+    global blinds_lowered
+    
+    while True:
+        # Only monitor during relevant hours
+        if is_monitoring_time():
+            cloud_cover, condition = get_cloud_cover()
+            
+            if cloud_cover is not None:
+                print(f"Current cloud cover: {cloud_cover}%, Condition: {condition}")
+                
+                # If it was cloudy but now it's sunny, lower the blinds
+                if blinds_lowered == False and cloud_cover < CLOUD_THRESHOLD:
+                    print(f"Cloud cover dropped below threshold ({CLOUD_THRESHOLD}%). It's sunny now - lowering blinds.")
+                    lower_blinds()
+                    blinds_lowered = True
+                
+                # If it was sunny but now it's cloudy, raise the blinds
+                elif blinds_lowered == True and cloud_cover >= CLOUD_THRESHOLD:
+                    print(f"Cloud cover increased above threshold ({CLOUD_THRESHOLD}%). It's cloudy now - raising blinds.")
+                    raise_blinds()
+                    blinds_lowered = False
+        
+        # Reset blind state at the end of the day
+        elif datetime.now().hour >= 23:
+            blinds_lowered = False
+            
+        # Sleep for the monitoring interval
+        time.sleep(MONITORING_INTERVAL * 60)
+
 app = Flask(__name__)
 remote_on = False
 channel_status = "All Channels"  # Default channel status
 channel_selection_in_progress = False  # Flag to track if channel selection is in progress
+blinds_lowered = False  # Track current blind state for cloud cover monitoring
 
 # Function to check the actual power state of the remote
 def check_remote_power_state():
@@ -135,9 +222,13 @@ def monitor_remote_power():
         update_remote_state()
         time.sleep(1)  # Check every second
 
-# Start the monitoring thread
+# Start the monitoring threads
 monitor_thread = threading.Thread(target=monitor_remote_power, daemon=True)
 monitor_thread.start()
+
+# Start the cloud cover monitoring thread
+cloud_monitor_thread = threading.Thread(target=monitor_cloud_cover, daemon=True)
+cloud_monitor_thread.start()
 
 @app.route('/')
 def index():
@@ -432,9 +523,12 @@ def index():
                 <button type="submit" class="power-button" {% if channel_selection_in_progress %}disabled{% endif %}>Power {{ 'OFF' if remote_on else 'ON' }}</button>
             </form>
             
-            <div style="margin-top: 10px;">
-                <a href="/schedule" style="display: block; text-align: center; background-color: #673AB7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-size: 16px;">
+            <div style="margin-top: 10px; display: flex; gap: 10px;">
+                <a href="/schedule" style="flex: 1; display: block; text-align: center; background-color: #673AB7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-size: 16px;">
                     View Sunset Schedule
+                </a>
+                <a href="/weather" style="flex: 1; display: block; text-align: center; background-color: #2196F3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-size: 16px;">
+                    Check Weather
                 </a>
             </div>
             
@@ -809,6 +903,250 @@ def reschedule():
     # Reschedule the blind actions
     schedule_blind_actions()
     return redirect(url_for('view_schedule'))
+
+@app.route('/weather')
+def view_weather():
+    # Get current weather data
+    cloud_cover, condition = get_cloud_cover()
+    
+    # Get weather API data for more details
+    try:
+        url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={LOCATION}&aqi=no"
+        response = requests.get(url)
+        data = response.json()
+        
+        # Extract weather details
+        temp_c = data['current']['temp_c']
+        temp_f = data['current']['temp_f']
+        humidity = data['current']['humidity']
+        wind_mph = data['current']['wind_mph']
+        wind_dir = data['current']['wind_dir']
+        feels_like_c = data['current']['feelslike_c']
+        feels_like_f = data['current']['feelslike_f']
+        uv = data['current']['uv']
+        
+        # Get icon URL
+        icon_url = "https:" + data['current']['condition']['icon']
+        
+        # Get location info
+        location_name = data['location']['name']
+        location_region = data['location']['region']
+        
+        # Check if it's overcast based on threshold
+        is_overcast_now = cloud_cover >= CLOUD_THRESHOLD
+        
+    except Exception as e:
+        print(f"Error fetching weather data: {e}")
+        # Set default values if API call fails
+        temp_c = temp_f = humidity = wind_mph = feels_like_c = feels_like_f = uv = "N/A"
+        wind_dir = "N/A"
+        icon_url = ""
+        location_name = LOCATION
+        location_region = ""
+        is_overcast_now = False
+    
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Weather Information</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-family: Arial, sans-serif;
+            }
+            body {
+                margin: 0;
+                padding: 16px;
+                background-color: #f5f5f5;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+            h1 {
+                text-align: center;
+                color: #333;
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            .weather-panel {
+                background-color: #fff;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .weather-header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 15px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #eee;
+            }
+            .weather-icon {
+                width: 64px;
+                height: 64px;
+                margin-right: 15px;
+            }
+            .weather-location {
+                flex: 1;
+            }
+            .weather-location h2 {
+                margin: 0 0 5px 0;
+                font-size: 20px;
+            }
+            .weather-location p {
+                margin: 0;
+                color: #666;
+            }
+            .weather-temp {
+                font-size: 36px;
+                font-weight: bold;
+                color: #2196F3;
+            }
+            .weather-condition {
+                font-size: 18px;
+                margin-bottom: 5px;
+            }
+            .weather-details {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-top: 15px;
+            }
+            .weather-detail-item {
+                padding: 10px;
+                background-color: #f9f9f9;
+                border-radius: 4px;
+            }
+            .weather-detail-label {
+                font-size: 12px;
+                color: #666;
+                margin-bottom: 5px;
+            }
+            .weather-detail-value {
+                font-size: 16px;
+                font-weight: bold;
+            }
+            .cloud-status {
+                margin-top: 15px;
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                font-weight: bold;
+            }
+            .cloud-status.overcast {
+                background-color: #e1f5fe;
+                color: #0288d1;
+            }
+            .cloud-status.clear {
+                background-color: #f1f8e9;
+                color: #689f38;
+            }
+            .action-buttons {
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+            }
+            .action-buttons a {
+                flex: 1;
+                display: block;
+                background-color: #2196F3;
+                color: white;
+                text-align: center;
+                padding: 12px 20px;
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: background-color 0.3s;
+            }
+            .action-buttons a:hover {
+                background-color: #1976D2;
+            }
+            .refresh-button {
+                background-color: #FF9800 !important;
+            }
+            .refresh-button:hover {
+                background-color: #F57C00 !important;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Weather Information</h1>
+        
+        <div style="margin-bottom: 15px; text-align: center;">
+            <a href="http://192.168.4.202:5001/" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+                ← Back to Hub
+            </a>
+        </div>
+        
+        <div class="weather-panel">
+            <div class="weather-header">
+                {% if icon_url %}
+                <img src="{{ icon_url }}" alt="Weather icon" class="weather-icon">
+                {% endif %}
+                <div class="weather-location">
+                    <h2>{{ location_name }}</h2>
+                    <p>{{ location_region }}</p>
+                </div>
+                <div class="weather-temp">{{ temp_f }}°F</div>
+            </div>
+            
+            <div class="weather-condition">{{ condition }}</div>
+            <div>Feels like: {{ feels_like_f }}°F / {{ feels_like_c }}°C</div>
+            
+            <div class="weather-details">
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Cloud Cover</div>
+                    <div class="weather-detail-value">{{ cloud_cover }}%</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Humidity</div>
+                    <div class="weather-detail-value">{{ humidity }}%</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Wind</div>
+                    <div class="weather-detail-value">{{ wind_mph }} mph {{ wind_dir }}</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">UV Index</div>
+                    <div class="weather-detail-value">{{ uv }}</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Temperature</div>
+                    <div class="weather-detail-value">{{ temp_c }}°C / {{ temp_f }}°F</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Threshold</div>
+                    <div class="weather-detail-value">{{ threshold }}%</div>
+                </div>
+            </div>
+            
+            <div class="cloud-status {{ 'overcast' if is_overcast_now else 'clear' }}">
+                {% if is_overcast_now %}
+                    Currently CLOUDY (above {{ threshold }}% cloud cover)
+                    <p>Blinds will be raised during monitoring period</p>
+                {% else %}
+                    Currently SUNNY (below {{ threshold }}% cloud cover)
+                    <p>Blinds will be lowered during monitoring period</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/weather" class="refresh-button">Refresh Weather</a>
+            <a href="/" class="home-button">Back to Controls</a>
+        </div>
+    </body>
+    </html>
+    ''', cloud_cover=cloud_cover, condition=condition, 
+        temp_c=temp_c, temp_f=temp_f, humidity=humidity, 
+        wind_mph=wind_mph, wind_dir=wind_dir, 
+        feels_like_c=feels_like_c, feels_like_f=feels_like_f, 
+        uv=uv, icon_url=icon_url, location_name=location_name, 
+        location_region=location_region, is_overcast_now=is_overcast_now,
+        threshold=CLOUD_THRESHOLD)
 
 
 if __name__ == '__main__':
