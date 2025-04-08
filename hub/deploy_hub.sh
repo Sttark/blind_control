@@ -39,9 +39,13 @@ fi
 
 # Install dependencies
 echo "Installing dependencies..."
-pip3 install flask
+# Try to install using apt (preferred method for Debian-based systems)
+echo "Installing packages using apt..."
+apt update
+apt install -y python3-flask
 if [ $? -ne 0 ]; then
-  echo -e "${YELLOW}Warning: Some dependencies may not have installed correctly.${NC}"
+  echo -e "${RED}Failed to install dependencies using apt. Exiting.${NC}"
+  exit 1
 fi
 
 # Update service file
