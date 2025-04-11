@@ -238,7 +238,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>South Building Blind Control</title>
+        <title>North Building Blinds Blind Control</title>
         <style>
             * {
                 box-sizing: border-box;
@@ -494,7 +494,7 @@ def index():
         </script>
     </head>
     <body>
-        <h1>South Building Blind Control</h1>
+        <h1>North Building Blinds Blind Control</h1>
         
         <div style="margin-bottom: 15px; text-align: center;">
             <a href="http://192.168.4.202:5001/" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
