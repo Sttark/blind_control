@@ -45,9 +45,6 @@ if [ ! -f "main.py" ]; then
     echo -e "${RED}Failed to clone repository. Exiting.${NC}"
     exit 1
   fi
-else
-  echo "Repository already exists, updating..."
-  git pull
 fi
 
 # Install dependencies
@@ -76,13 +73,13 @@ EOL
 
 # Update service file
 echo "Creating systemd service file..."
-cat > blind_control.service << EOL
+cat > blind_control_controller.service << EOL
 [Unit]
-Description=Blind Control Web Interface for $location_name
+Description=Blind Control Controller for $location_name
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/blind_control/main.py
+ExecStart=/usr/bin/python3 /home/pi/blind_control/controller.py
 WorkingDirectory=/home/pi/blind_control
 Restart=always
 User=root
@@ -93,14 +90,14 @@ EOL
 
 # Copy service file
 echo "Installing systemd service..."
-cp blind_control.service /etc/systemd/system/
+cp blind_control_controller.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable blind_control
-systemctl start blind_control
+systemctl enable blind_control_controller
+systemctl start blind_control_controller
 
 # Check service status
 echo "Checking service status..."
-systemctl status blind_control --no-pager
+systemctl status blind_control_controller --no-pager
 
 # Get IP address
 ip_address=$(hostname -I | awk '{print $1}')

@@ -32,9 +32,6 @@ if [ ! -f "main.py" ]; then
     echo -e "${RED}Failed to clone repository. Exiting.${NC}"
     exit 1
   fi
-else
-  echo "Repository already exists, updating..."
-  git pull
 fi
 
 # Install dependencies
@@ -85,10 +82,28 @@ else
   echo "config.json already exists, keeping existing configuration."
 fi
 
-# Make update scripts executable
-echo "Making update scripts executable..."
-chmod +x hub/update_hub.sh
-chmod +x hub/update_all_controllers.sh
+# Create default hub_config.json if it doesn't exist
+echo "Checking for hub_config.json..."
+if [ ! -f "hub/hub_config.json" ]; then
+  echo "Creating default hub_config.json..."
+  cat > hub/hub_config.json << EOL
+{
+    "weather_api_key": "b8c328a0f8be42ff936210148250404",
+    "location": "29607",
+    "cloud_threshold": 15,
+    "monitoring_interval": 10,
+    "schedule": {
+        "lower_blinds_offset": 150,
+        "raise_blinds_offset": 10
+    }
+}
+EOL
+  echo "Default hub_config.json created."
+else
+  echo "hub_config.json already exists, keeping existing configuration."
+fi
+
+# No update scripts needed
 
 # Copy service file
 echo "Installing systemd service..."

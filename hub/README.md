@@ -4,7 +4,13 @@ A central hub for managing multiple blind controllers across different locations
 
 ## Overview
 
-The Blind Control Hub provides a unified interface for accessing multiple blind controllers deployed on different Raspberry Pis. It serves as a landing page that lists all available blind controllers and allows easy navigation between them.
+The Blind Control Hub provides a unified interface for accessing multiple blind controllers deployed on different Raspberry Pis. It serves as a central management system that:
+
+1. Provides a dashboard to access all controllers
+2. Monitors weather conditions and sunset times
+3. Schedules blind actions based on these conditions
+4. Sends commands to controllers
+5. Monitors controller status and health
 
 ## Features
 
@@ -87,21 +93,24 @@ To deploy the blind control system to a new Raspberry Pi:
    cd blind_control
    ```
 
-2. Install the required dependencies:
+2. Make the deployment script executable:
    ```
-   pip3 install flask RPi.GPIO astral schedule
+   chmod +x deploy.sh
    ```
 
-3. Update the title in `main.py` to reflect the location (e.g., change "South Building" to "North Building")
+3. Run the deployment script:
+   ```
+   sudo ./deploy.sh
+   ```
 
-4. Set up the systemd service:
-   ```
-   sudo cp blind_control.service /etc/systemd/system/
-   sudo systemctl enable blind_control
-   sudo systemctl start blind_control
-   ```
+4. Follow the prompts to configure your blind controller with a location name.
 
 5. Add the new controller to the hub using the Admin Settings panel
+
+The controller will run the `controller.py` script, which provides:
+- A web interface for manual control
+- API endpoints for the hub to send commands
+- Standalone operation if the hub is unreachable
 
 ## Service Management
 
@@ -110,34 +119,30 @@ To deploy the blind control system to a new Raspberry Pi:
 - **Check status**: `sudo systemctl status blind_control_hub`
 - **View logs**: `sudo journalctl -u blind_control_hub`
 
-## Update Management
+## Individual Programming
 
-The hub now includes tools for managing updates across all connected controllers:
+Each Pi in the system can be programmed individually:
 
-### Updating the Hub
+### Programming the Hub
 
-To update the hub itself:
-
-1. SSH into the hub Raspberry Pi
-2. Navigate to the hub directory: `cd /home/pi/blind_control/hub`
-3. Run the update script: `sudo ./update_hub.sh`
-
-The script will back up your configuration, update the code, and restore your configuration.
-
-### Updating All Controllers
-
-The hub can now update all connected controllers remotely:
+To update the hub:
 
 1. SSH into the hub Raspberry Pi
 2. Navigate to the hub directory: `cd /home/pi/blind_control/hub`
-3. Run the update all script: `sudo ./update_all_controllers.sh`
-4. Follow the prompts to select which controllers to update
+3. Make your changes directly to the code or configuration files
+4. Restart the service: `sudo systemctl restart blind_control_hub`
 
-This requires SSH key-based authentication to be set up between the hub and all controllers. For detailed instructions, see the [Update Protocol Documentation](../UPDATE_PROTOCOL.md).
+### Programming Controllers
+
+To update a controller:
+
+1. SSH into the controller Raspberry Pi
+2. Navigate to the blind control directory: `cd /home/pi/blind_control`
+3. Make your changes directly to the code or configuration files
+4. Restart the service: `sudo systemctl restart blind_control_controller`
 
 ## Troubleshooting
 
 - If the hub interface is not accessible, ensure the service is running with `sudo systemctl status blind_control_hub`
 - If a controller is not accessible from the hub, verify that the URL is correct and that the controller is running
 - For mDNS resolution issues (using .local domains), ensure that Avahi/Bonjour is properly configured on your network
-- For update-related issues, refer to the [Update Protocol Documentation](../UPDATE_PROTOCOL.md#troubleshooting)

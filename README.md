@@ -6,7 +6,11 @@ A Raspberry Pi-based web interface for controlling motorized window blinds remot
 
 This project provides a web-based control system for motorized window blinds. It uses a Raspberry Pi to interface with a physical remote control through GPIO pins, allowing users to control blinds from any device with a web browser on the local network.
 
-The system now supports multiple controllers across different locations with a central hub interface.
+The system supports multiple controllers across different locations with a central hub interface. The architecture consists of:
+
+1. **Hub**: A central server that provides a dashboard to access all controllers, schedules actions based on sunset times and weather conditions, and sends commands to controllers.
+
+2. **Controllers**: Individual Raspberry Pis connected to blind remotes that can operate independently if the hub is unreachable.
 
 ## Repository
 
@@ -157,24 +161,21 @@ A deployment script is included to make it easy to set up the blind control syst
 
 For more details on the hub setup and usage, see the [Hub README](hub/README.md).
 
-## Update Protocol
+## Configuration
 
-The system now includes a robust update protocol that separates code from configuration, making it easy to update controllers without losing location-specific settings:
+The system uses a configuration-based approach that separates code from configuration:
 
 - **Configuration-Based Approach**: Each controller has a `local_config.json` file with location-specific settings
-- **Update Scripts**: Simple scripts for updating individual controllers or all controllers from the hub
-- **Configuration Preservation**: Updates automatically back up and restore configuration files
-- **Centralized Updates**: Update all controllers from the hub with a single command
+- **Hub Configuration**: The hub has configuration files for controllers and global settings
 
-For detailed information on the update process, see the [Update Protocol Documentation](UPDATE_PROTOCOL.md).
+Each Pi can be programmed individually by connecting to it directly and modifying its code or configuration.
 
 ## Troubleshooting
 
-- If the web interface is not accessible, ensure the service is running with `sudo systemctl status blind_control`
+- If the web interface is not accessible, ensure the service is running with `sudo systemctl status blind_control_controller`
 - If buttons are not responding correctly, verify the GPIO wiring and pin assignments
 - To reset the GPIO pins, access the `/cleanup` endpoint in your browser
 - If the hub interface is not accessible, check its service status with `sudo systemctl status blind_control_hub`
-- For update-related issues, refer to the [Update Protocol Documentation](UPDATE_PROTOCOL.md#troubleshooting)
 
 ## Author
 
