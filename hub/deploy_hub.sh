@@ -65,6 +65,31 @@ User=root
 WantedBy=multi-user.target
 EOL
 
+# Create default config.json if it doesn't exist
+echo "Checking for config.json..."
+if [ ! -f "hub/config.json" ]; then
+  echo "Creating default config.json..."
+  cat > hub/config.json << EOL
+{
+    "controllers": [
+        {
+            "name": "South Building",
+            "url": "http://192.168.4.202:5000/",
+            "description": "Controls for South Building blinds"
+        }
+    ]
+}
+EOL
+  echo "Default config.json created."
+else
+  echo "config.json already exists, keeping existing configuration."
+fi
+
+# Make update scripts executable
+echo "Making update scripts executable..."
+chmod +x hub/update_hub.sh
+chmod +x hub/update_all_controllers.sh
+
 # Copy service file
 echo "Installing systemd service..."
 cp hub/blind_control_hub.service /etc/systemd/system/

@@ -1,0 +1,8 @@
+{
+    "location_name": "South Building",
+    "hub_url": "http://192.168.4.202:5001/",
+    "weather_api_key": "b8c328a0f8be42ff936210148250404",
+    "location": "29607",
+    "cloud_threshold": 15,
+    "monitoring_interval": 10
+}

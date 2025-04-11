@@ -110,8 +110,34 @@ To deploy the blind control system to a new Raspberry Pi:
 - **Check status**: `sudo systemctl status blind_control_hub`
 - **View logs**: `sudo journalctl -u blind_control_hub`
 
+## Update Management
+
+The hub now includes tools for managing updates across all connected controllers:
+
+### Updating the Hub
+
+To update the hub itself:
+
+1. SSH into the hub Raspberry Pi
+2. Navigate to the hub directory: `cd /home/pi/blind_control/hub`
+3. Run the update script: `sudo ./update_hub.sh`
+
+The script will back up your configuration, update the code, and restore your configuration.
+
+### Updating All Controllers
+
+The hub can now update all connected controllers remotely:
+
+1. SSH into the hub Raspberry Pi
+2. Navigate to the hub directory: `cd /home/pi/blind_control/hub`
+3. Run the update all script: `sudo ./update_all_controllers.sh`
+4. Follow the prompts to select which controllers to update
+
+This requires SSH key-based authentication to be set up between the hub and all controllers. For detailed instructions, see the [Update Protocol Documentation](../UPDATE_PROTOCOL.md).
+
 ## Troubleshooting
 
 - If the hub interface is not accessible, ensure the service is running with `sudo systemctl status blind_control_hub`
 - If a controller is not accessible from the hub, verify that the URL is correct and that the controller is running
 - For mDNS resolution issues (using .local domains), ensure that Avahi/Bonjour is properly configured on your network
+- For update-related issues, refer to the [Update Protocol Documentation](../UPDATE_PROTOCOL.md#troubleshooting)

@@ -61,10 +61,18 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Update location name in main.py
-echo "Updating location name in main.py..."
-sed -i "s/<title>South Building Blind Control<\/title>/<title>$location_name Blind Control<\/title>/g" main.py
-sed -i "s/<h1>South Building Blind Control<\/h1>/<h1>$location_name Blind Control<\/h1>/g" main.py
+# Create local configuration file
+echo "Creating local configuration file..."
+cat > local_config.json << EOL
+{
+    "location_name": "$location_name",
+    "hub_url": "http://192.168.4.202:5001/",
+    "weather_api_key": "b8c328a0f8be42ff936210148250404",
+    "location": "29607",
+    "cloud_threshold": 15,
+    "monitoring_interval": 10
+}
+EOL
 
 # Update service file
 echo "Creating systemd service file..."

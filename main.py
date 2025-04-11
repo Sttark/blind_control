@@ -3,17 +3,39 @@ import time
 import threading
 import sys
 import os
+import json
 import RPi.GPIO as GPIO
 import schedule
 import requests
 from astral import Astral
 from datetime import datetime, timedelta
 
-# WeatherAPI.com configuration
-WEATHER_API_KEY = "b8c328a0f8be42ff936210148250404"
-LOCATION = "29607"  # Zip code
-CLOUD_THRESHOLD = 15  # Consider sunny if cloud cover is below 15%
-MONITORING_INTERVAL = 10  # Check weather every 10 minutes (in minutes)
+# Load configuration from local_config.json
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'local_config.json')
+try:
+    with open(CONFIG_FILE, 'r') as f:
+        config = json.load(f)
+except FileNotFoundError:
+    # Default configuration
+    config = {
+        "location_name": "South Building",
+        "hub_url": "http://192.168.4.202:5001/",
+        "weather_api_key": "b8c328a0f8be42ff936210148250404",
+        "location": "29607",
+        "cloud_threshold": 15,
+        "monitoring_interval": 10
+    }
+    # Save default configuration
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=4)
+
+# Configuration variables
+LOCATION_NAME = config.get('location_name', 'South Building')
+HUB_URL = config.get('hub_url', 'http://192.168.4.202:5001/')
+WEATHER_API_KEY = config.get('weather_api_key', 'b8c328a0f8be42ff936210148250404')
+LOCATION = config.get('location', '29607')  # Zip code
+CLOUD_THRESHOLD = config.get('cloud_threshold', 15)  # Consider sunny if cloud cover is below 15%
+MONITORING_INTERVAL = config.get('monitoring_interval', 10)  # Check weather every 10 minutes (in minutes)
 
 REMOTE_POWER_PIN = 4
 BUTTON_PINS = {
@@ -238,7 +260,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>North Building Blinds Blind Control</title>
+        <title>{{ location_name }} Blind Control</title>
         <style>
             * {
                 box-sizing: border-box;
@@ -494,10 +516,10 @@ def index():
         </script>
     </head>
     <body>
-        <h1>North Building Blinds Blind Control</h1>
+        <h1>{{ location_name }} Blind Control</h1>
         
         <div style="margin-bottom: 15px; text-align: center;">
-            <a href="http://192.168.4.202:5001/" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            <a href="{{ hub_url }}" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
                 ← Back to Hub
             </a>
         </div>
@@ -583,7 +605,8 @@ def index():
         </div>
     </body>
     </html>
-    ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status, channel_selection_in_progress=channel_selection_in_progress)
+    ''', button_names=BUTTON_PINS.keys(), remote_on=remote_on, channel_status=channel_status, 
+        channel_selection_in_progress=channel_selection_in_progress, location_name=LOCATION_NAME, hub_url=HUB_URL)
 
 # Function to select all channels by pressing Channel Down button
 def select_all_channels():
@@ -871,7 +894,7 @@ def view_schedule():
         <h1>Blind Schedule</h1>
         
         <div style="margin-bottom: 15px; text-align: center;">
-            <a href="http://192.168.4.202:5001/" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            <a href="{{ hub_url }}" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
                 ← Back to Hub
             </a>
         </div>
@@ -896,7 +919,7 @@ def view_schedule():
         </div>
     </body>
     </html>
-    ''', sunset_time=sunset_str, lower_time=lower_time_str, raise_time=raise_time_str)
+    ''', sunset_time=sunset_str, lower_time=lower_time_str, raise_time=raise_time_str, hub_url=HUB_URL)
 
 @app.route('/reschedule')
 def reschedule():
@@ -1076,7 +1099,7 @@ def view_weather():
         <h1>Weather Information</h1>
         
         <div style="margin-bottom: 15px; text-align: center;">
-            <a href="http://192.168.4.202:5001/" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            <a href="{{ hub_url }}" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
                 ← Back to Hub
             </a>
         </div>
