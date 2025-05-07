@@ -72,8 +72,8 @@ WEATHER_API_KEY = hub_config.get('weather_api_key', 'b8c328a0f8be42ff93621014825
 LOCATION = hub_config.get('location', '29607')  # Zip code
 CLOUD_THRESHOLD = hub_config.get('cloud_threshold', 15)  # Consider sunny if cloud cover is below 15%
 MONITORING_INTERVAL = hub_config.get('monitoring_interval', 10)  # Check weather every 10 minutes (in minutes)
-LOWER_BLINDS_OFFSET = hub_config.get('schedule', {}).get('lower_blinds_offset', 150)  # 2.5 hours before sunset
-RAISE_BLINDS_OFFSET = hub_config.get('schedule', {}).get('raise_blinds_offset', 10)  # 10 minutes before sunset
+LOWER_BLINDS_OFFSET = hub_config.get('schedule', {}).get('lower_blinds_offset', 192)  # 3 hours and 12 minutes before sunset
+RAISE_BLINDS_OFFSET = hub_config.get('schedule', {}).get('raise_blinds_offset', 0)  # At sunset
 
 # Global variables for tracking state
 controller_status = {}  # Store status of each controller
@@ -231,7 +231,7 @@ def schedule_blind_actions():
     schedule.every().day.at(raise_time_str).do(raise_blinds_on_all_controllers)
     
     print(f"Scheduled to lower blinds at {lower_time_str} ({LOWER_BLINDS_OFFSET} minutes before sunset, if not too cloudy)")
-    print(f"Scheduled to raise blinds at {raise_time_str} ({RAISE_BLINDS_OFFSET} minutes before sunset)")
+    print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
 
 # Function to monitor cloud cover and control blinds
 def monitor_cloud_cover():
@@ -656,7 +656,7 @@ def index():
             </div>
             
             <div class="schedule-item">
-                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> ({{ raise_offset }} minutes before sunset)</p>
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes before sunset){% endif %}</p>
             </div>
             
             <form action="/reschedule" method="get" style="margin-top: 15px;">

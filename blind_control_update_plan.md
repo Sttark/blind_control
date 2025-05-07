@@ -8,23 +8,25 @@ The North Building Pi is not displaying weather information correctly. After ana
 2. However, the h1 heading still says "South Building Blind Control"
 3. This inconsistency suggests that when the code was deployed to the North Building Pi, not all references to "South Building" were updated
 
-## Analysis of Current Deployment Approach
+## Analysis of Previous Deployment Approach
 
-The current deployment process uses `deploy.sh` which:
+The previous deployment process used a deployment script which:
 
-1. Prompts for a location name (e.g., "North Building")
-2. Updates specific strings in main.py using sed commands:
+1. Prompted for a location name (e.g., "North Building")
+2. Updated specific strings in main.py using sed commands:
    ```bash
    sed -i "s/<title>South Building Blind Control<\/title>/<title>$location_name Blind Control<\/title>/g" main.py
    sed -i "s/<h1>South Building Blind Control<\/h1>/<h1>$location_name Blind Control<\/h1>/g" main.py
    ```
-3. Creates a systemd service file with the location name
+3. Created a systemd service file with the location name
 
-Limitations of this approach:
-- It only updates specific hardcoded strings
-- If the HTML structure changes, the sed commands might fail
-- It doesn't handle other location-specific settings (like the hub URL)
-- There's no verification that all references were updated
+Limitations of that approach:
+- It only updated specific hardcoded strings
+- If the HTML structure changed, the sed commands might fail
+- It didn't handle other location-specific settings (like the hub URL)
+- There was no verification that all references were updated
+
+Note: The deployment scripts have been removed from the repository, and manual installation instructions have been added to the README files.
 
 ## Proposed Solutions for Better Update Management
 
@@ -63,16 +65,16 @@ Then update the HTML template to use these variables:
 <a href="{{ HUB_URL }}" style="...">← Back to Hub</a>
 ```
 
-### 2. Update the Deployment Script
+### 2. Use Configuration Files for Installation
 
-Modify deploy.sh to create this configuration file instead of using sed:
+Instead of using scripts with sed commands, use a configuration file approach during installation:
 
 ```bash
 # Create local configuration file
 echo "Creating local configuration file..."
 cat > local_config.json << EOL
 {
-    "location_name": "$location_name",
+    "location_name": "Your Location Name",
     "hub_url": "http://192.168.4.202:5001/"
 }
 EOL
@@ -198,7 +200,7 @@ To fix the current issue with the North Building Pi, we need to:
 ## Implementation Plan
 
 1. First, modify main.py to use configuration variables instead of hardcoded values
-2. Create the local_config.json approach and update deploy.sh
+2. Create the local_config.json approach for configuration management
 3. Add the update.sh script to the repository
 4. Add the update management interface to the hub
 5. Update documentation

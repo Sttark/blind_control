@@ -70,7 +70,7 @@ def get_sunset_time():
 
 # Function to lower the blinds
 def lower_blinds():
-    print("Scheduled task: Lowering blinds 2.5 hours before sunset")
+    print("Scheduled task: Lowering blinds 3 hours and 12 minutes before sunset")
     
     # Make sure remote is on
     if not check_remote_power_state():
@@ -88,7 +88,7 @@ def lower_blinds():
 
 # Function to raise the blinds
 def raise_blinds():
-    print("Scheduled task: Raising blinds 10 minutes before sunset")
+    print("Scheduled task: Raising blinds at sunset")
     
     # Make sure remote is on
     if not check_remote_power_state():
@@ -113,8 +113,8 @@ def schedule_blind_actions():
     sunset = get_sunset_time()
     
     # Calculate times for lowering and raising blinds
-    lower_time = sunset - timedelta(hours=2, minutes=30)
-    raise_time = sunset - timedelta(minutes=10)
+    lower_time = sunset - timedelta(hours=3, minutes=12)
+    raise_time = sunset  # Blinds go up exactly at sunset
     
     # Format times for scheduler (HH:MM format)
     lower_time_str = lower_time.strftime("%H:%M")
@@ -124,8 +124,8 @@ def schedule_blind_actions():
     schedule.every().day.at(lower_time_str).do(lower_blinds_with_cloud_check)
     schedule.every().day.at(raise_time_str).do(raise_blinds)
     
-    print(f"Scheduled to lower blinds at {lower_time_str} (2.5 hours before sunset, if not too cloudy)")
-    print(f"Scheduled to raise blinds at {raise_time_str} (10 minutes before sunset)")
+    print(f"Scheduled to lower blinds at {lower_time_str} (3 hours and 12 minutes before sunset, if not too cloudy)")
+    print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
 
 # Function to run the scheduler
 def run_scheduler():
@@ -796,8 +796,8 @@ def view_schedule():
     sunset = get_sunset_time()
     
     # Calculate scheduled times
-    lower_time = sunset - timedelta(hours=2, minutes=30)
-    raise_time = sunset - timedelta(minutes=10)
+    lower_time = sunset - timedelta(hours=3, minutes=12)
+    raise_time = sunset  # Blinds go up exactly at sunset
     
     # Format times for display
     sunset_str = sunset.strftime("%I:%M %p")
@@ -905,11 +905,11 @@ def view_schedule():
             </div>
             
             <div class="schedule-item">
-                <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> (2.5 hours before sunset)</p>
+                <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> (3 hours and 12 minutes before sunset)</p>
             </div>
             
             <div class="schedule-item">
-                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> (10 minutes before sunset)</p>
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> (at sunset)</p>
             </div>
         </div>
         

@@ -21,36 +21,7 @@ The Blind Control Hub provides a unified interface for accessing multiple blind 
 
 ## Installation
 
-### Automated Installation
-
-A deployment script is included to make it easy to set up the blind control hub:
-
-1. SSH into your Raspberry Pi:
-   ```
-   ssh pi@your-raspberry-pi-ip
-   ```
-
-2. Clone the repository:
-   ```
-   git clone https://github.com/Sttark/blind_control.git
-   cd blind_control/hub
-   ```
-
-3. Make the deployment script executable:
-   ```
-   chmod +x deploy_hub.sh
-   ```
-
-4. Run the deployment script:
-   ```
-   sudo ./deploy_hub.sh
-   ```
-
-5. Once installation is complete, access the hub interface and add your blind controllers.
-
-### Manual Installation
-
-If you prefer to install manually:
+To install the blind control hub:
 
 1. Make sure you have the required dependencies:
    ```
@@ -83,29 +54,50 @@ If you prefer to install manually:
    - **Description**: Optional details about the controller
 3. Click "Add Controller" to save
 
-## Deploying a New Blind Controller
+## Setting Up a New Controller
 
-To deploy the blind control system to a new Raspberry Pi:
+To set up the blind control system on a new Raspberry Pi:
 
-1. Clone the repository on the new Raspberry Pi:
+1. SSH into your Raspberry Pi:
+   ```
+   ssh pi@your-raspberry-pi-ip
+   ```
+
+2. Clone the repository:
    ```
    git clone https://github.com/Sttark/blind_control.git
    cd blind_control
    ```
 
-2. Make the deployment script executable:
+3. Install the required dependencies:
    ```
-   chmod +x deploy.sh
-   ```
-
-3. Run the deployment script:
-   ```
-   sudo ./deploy.sh
+   sudo apt update
+   sudo apt install -y python3-flask python3-rpi.gpio python3-astral python3-schedule
    ```
 
-4. Follow the prompts to configure your blind controller with a location name.
+4. Create a local configuration file with your location-specific settings:
+   ```
+   cat > local_config.json << EOL
+   {
+       "location_name": "Your Location Name",
+       "hub_url": "http://192.168.4.202:5001/",
+       "weather_api_key": "b8c328a0f8be42ff936210148250404",
+       "location": "29607",
+       "cloud_threshold": 15,
+       "monitoring_interval": 10
+   }
+   EOL
+   ```
 
-5. Add the new controller to the hub using the Admin Settings panel
+5. Set up the systemd service for automatic startup:
+   ```
+   sudo cp blind_control_controller.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable blind_control_controller
+   sudo systemctl start blind_control_controller
+   ```
+
+6. Add the new controller to the hub using the Admin Settings panel
 
 The controller will run the `controller.py` script, which provides:
 - A web interface for manual control

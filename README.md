@@ -130,9 +130,9 @@ This project now supports multiple blind controllers across different locations 
    http://blind-control-hub.local:5001/
    ```
 
-### Deploying to a New Raspberry Pi
+### Setting Up a New Controller
 
-A deployment script is included to make it easy to set up the blind control system on a new Raspberry Pi:
+To set up the blind control system on a new Raspberry Pi:
 
 1. SSH into your Raspberry Pi:
    ```
@@ -145,19 +145,35 @@ A deployment script is included to make it easy to set up the blind control syst
    cd blind_control
    ```
 
-3. Make the deployment script executable:
+3. Install the required dependencies:
    ```
-   chmod +x deploy.sh
-   ```
-
-4. Run the deployment script:
-   ```
-   sudo ./deploy.sh
+   sudo apt update
+   sudo apt install -y python3-flask python3-rpi.gpio python3-astral python3-schedule
    ```
 
-5. Follow the prompts to configure your blind controller with a location name.
+4. Create a local configuration file with your location-specific settings:
+   ```
+   cat > local_config.json << EOL
+   {
+       "location_name": "Your Location Name",
+       "hub_url": "http://192.168.4.202:5001/",
+       "weather_api_key": "b8c328a0f8be42ff936210148250404",
+       "location": "29607",
+       "cloud_threshold": 15,
+       "monitoring_interval": 10
+   }
+   EOL
+   ```
 
-6. Once installation is complete, add the new controller to your hub using the provided details.
+5. Set up the systemd service for automatic startup:
+   ```
+   sudo cp blind_control_controller.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable blind_control_controller
+   sudo systemctl start blind_control_controller
+   ```
+
+6. Once installation is complete, add the new controller to your hub using the Admin Settings panel.
 
 For more details on the hub setup and usage, see the [Hub README](hub/README.md).
 
