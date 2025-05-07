@@ -25,6 +25,9 @@ https://github.com/Sttark/blind_control
 - **Mobile-Friendly Interface**: Responsive design works on smartphones, tablets, and computers
 - **Status Indicators**: Visual feedback on remote power status and current channel
 - **Automatic Channel Reset**: Automatically resets to "All Channels" mode when powered on
+- **Centralized Schedule Management**: Control blind timing settings from a single location
+- **Schedule Viewing**: View the current blind schedule on each controller
+- **Standalone Mode**: Controllers can operate independently if the hub is unreachable
 
 ## Hardware Requirements
 
@@ -53,7 +56,7 @@ The system uses the following GPIO pins (BCM mode):
 
 2. Install the required dependencies:
    ```
-   pip3 install flask RPi.GPIO
+   pip3 install flask RPi.GPIO astral schedule
    ```
 
 3. Set up the systemd service for automatic startup:
@@ -74,6 +77,7 @@ The system uses the following GPIO pins (BCM mode):
    - Direction buttons (Up/Stop/Down) control blind movement
    - Pair button initiates pairing mode (holds "Up" for 5 seconds)
    - Channel selection allows controlling different blinds or blind groups
+3. View the current schedule by clicking the "View Sunset Schedule" button
 
 ## Service Management
 
@@ -87,14 +91,14 @@ The system uses the following GPIO pins (BCM mode):
 To run the application in development mode:
 
 ```
-python3 main.py
+python3 controller.py
 ```
 
 The web server will start on port 5000 and be accessible via the same URLs mentioned in the Usage section.
 
 ## Customization
 
-You can customize the GPIO pin assignments by modifying the `REMOTE_POWER_PIN` and `BUTTON_PINS` variables in `main.py`.
+You can customize the GPIO pin assignments by modifying the `REMOTE_POWER_PIN` and `BUTTON_PINS` variables in `controller.py`.
 
 ## Multi-Controller Setup
 
@@ -105,6 +109,7 @@ This project now supports multiple blind controllers across different locations 
 - **Central Dashboard**: A single page that lists all blind controllers
 - **Easy Navigation**: Click on any controller to access its interface
 - **Admin Panel**: Add, edit, or remove blind controllers through a simple interface
+- **Centralized Schedule Management**: Control blind timing settings from a single location
 
 ### Setting Up the Hub
 
@@ -115,7 +120,7 @@ This project now supports multiple blind controllers across different locations 
 
 2. Install the required dependencies:
    ```
-   pip3 install flask
+   pip3 install flask astral schedule
    ```
 
 3. Set up the systemd service for the hub:
@@ -160,7 +165,11 @@ To set up the blind control system on a new Raspberry Pi:
        "weather_api_key": "b8c328a0f8be42ff936210148250404",
        "location": "29607",
        "cloud_threshold": 15,
-       "monitoring_interval": 10
+       "monitoring_interval": 10,
+       "schedule": {
+           "lower_blinds_offset": 192,
+           "raise_blinds_offset": 0
+       }
    }
    EOL
    ```
@@ -183,8 +192,17 @@ The system uses a configuration-based approach that separates code from configur
 
 - **Configuration-Based Approach**: Each controller has a `local_config.json` file with location-specific settings
 - **Hub Configuration**: The hub has configuration files for controllers and global settings
+- **Centralized Schedule Management**: The hub's `hub_config.json` file contains the schedule settings for all controllers
+- **Local Schedule Override**: Each controller's `local_config.json` file can override the hub's schedule settings if needed
 
-Each Pi can be programmed individually by connecting to it directly and modifying its code or configuration.
+## File Structure
+
+- **controller.py**: The main controller code that runs on each Raspberry Pi
+- **main.py**: Legacy controller code (not used by default)
+- **local_config.json**: Local configuration for each controller
+- **hub/main.py**: The hub code that runs on the central Raspberry Pi
+- **hub/hub_config.json**: Hub configuration including schedule settings
+- **hub/config.json**: List of controllers managed by the hub
 
 ## Troubleshooting
 
@@ -192,6 +210,7 @@ Each Pi can be programmed individually by connecting to it directly and modifyin
 - If buttons are not responding correctly, verify the GPIO wiring and pin assignments
 - To reset the GPIO pins, access the `/cleanup` endpoint in your browser
 - If the hub interface is not accessible, check its service status with `sudo systemctl status blind_control_hub`
+- If schedule changes don't appear on a controller, check that the controller is connected to the hub and restart the controller service
 
 ## Author
 

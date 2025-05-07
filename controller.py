@@ -35,6 +35,10 @@ LOCATION = config.get('location', '29607')  # Zip code
 CLOUD_THRESHOLD = config.get('cloud_threshold', 15)  # Consider sunny if cloud cover is below 15%
 MONITORING_INTERVAL = config.get('monitoring_interval', 10)  # Check weather every 10 minutes (in minutes)
 
+# Schedule settings - load from config or use defaults
+LOWER_BLINDS_OFFSET = config.get('schedule', {}).get('lower_blinds_offset', 192)  # 3 hours and 12 minutes before sunset
+RAISE_BLINDS_OFFSET = config.get('schedule', {}).get('raise_blinds_offset', 0)  # At sunset
+
 # GPIO Pin Configuration
 REMOTE_POWER_PIN = 4
 BUTTON_PINS = {
@@ -504,6 +508,12 @@ def index():
                 <button type="submit" class="power-button" {% if channel_selection_in_progress %}disabled{% endif %}>Power {{ 'OFF' if remote_on else 'ON' }}</button>
             </form>
             
+            <div style="margin-top: 10px; display: flex; gap: 10px;">
+                <a href="/schedule" style="flex: 1; display: block; text-align: center; background-color: #673AB7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-size: 16px;">
+                    View Sunset Schedule
+                </a>
+            </div>
+            
             {% if remote_on %}
             <h2>Blind Controls</h2>
             <div class="direction-buttons">
@@ -707,6 +717,147 @@ def select_channel():
     # Start the channel selection process in a background thread
     threading.Thread(target=navigate_to_channel).start()
     return redirect(url_for('index'))
+
+@app.route('/schedule')
+def view_schedule():
+    from astral import Astral
+    
+    # Get sunset time
+    a = Astral()
+    city = a['New York']
+    sun_info = city.sun(date=datetime.now(), local=True)
+    sunset = sun_info['sunset']
+    
+    # Calculate scheduled times
+    lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
+    raise_time = sunset - timedelta(minutes=RAISE_BLINDS_OFFSET)
+    
+    # Format times for display
+    sunset_str = sunset.strftime("%I:%M %p")
+    lower_time_str = lower_time.strftime("%I:%M %p")
+    raise_time_str = raise_time.strftime("%I:%M %p")
+    
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Blind Schedule</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-family: Arial, sans-serif;
+            }
+            body {
+                margin: 0;
+                padding: 16px;
+                background-color: #f5f5f5;
+                max-width: 600px;
+                margin: 0 auto;
+            }
+            h1 {
+                text-align: center;
+                color: #333;
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            .schedule-panel {
+                background-color: #fff;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .schedule-item {
+                margin-bottom: 15px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #eee;
+            }
+            .schedule-item:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            .time {
+                font-weight: bold;
+                color: #2196F3;
+            }
+            .action-buttons {
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+            }
+            .action-buttons a {
+                flex: 1;
+                display: block;
+                background-color: #4CAF50;
+                color: white;
+                text-align: center;
+                padding: 12px 20px;
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: background-color 0.3s;
+            }
+            .action-buttons a:hover {
+                background-color: #45a049;
+            }
+            .action-buttons .home-button {
+                background-color: #2196F3;
+            }
+            .action-buttons .home-button:hover {
+                background-color: #1976D2;
+            }
+            .standalone-mode {
+                background-color: #f8d7da;
+                color: #721c24;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 15px 0;
+                text-align: center;
+                font-weight: bold;
+                border: 1px solid #f5c6cb;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>{{ location_name }} Blind Schedule</h1>
+        
+        <div style="margin-bottom: 15px; text-align: center;">
+            <a href="{{ hub_url }}" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+                ← Back to Hub
+            </a>
+        </div>
+        
+        {% if standalone_mode %}
+        <div class="standalone-mode">
+            <p>STANDALONE MODE: Hub connection lost. Using local schedule settings.</p>
+        </div>
+        {% endif %}
+        
+        <div class="schedule-panel">
+            <div class="schedule-item">
+                <p><strong>Today's Sunset:</strong> <span class="time">{{ sunset_time }}</span></p>
+            </div>
+            
+            <div class="schedule-item">
+                <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> ({{ lower_offset }} minutes before sunset)</p>
+            </div>
+            
+            <div class="schedule-item">
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes before sunset){% endif %}</p>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/" class="home-button">Back to Controls</a>
+        </div>
+    </body>
+    </html>
+    ''', sunset_time=sunset_str, lower_time=lower_time_str, raise_time=raise_time_str, 
+        lower_offset=LOWER_BLINDS_OFFSET, raise_offset=RAISE_BLINDS_OFFSET,
+        location_name=LOCATION_NAME, hub_url=HUB_URL, standalone_mode=standalone_mode)
 
 @app.route('/cleanup')
 def cleanup():

@@ -11,6 +11,7 @@ The Blind Control Hub provides a unified interface for accessing multiple blind 
 3. Schedules blind actions based on these conditions
 4. Sends commands to controllers
 5. Monitors controller status and health
+6. Centralizes schedule management for all controllers
 
 ## Features
 
@@ -18,6 +19,9 @@ The Blind Control Hub provides a unified interface for accessing multiple blind 
 - **Easy Navigation**: Click on any controller to access its interface
 - **Admin Panel**: Add, edit, or remove blind controllers through a simple interface
 - **Responsive Design**: Works on smartphones, tablets, and computers
+- **Centralized Schedule Management**: Control blind timing settings from a single location
+- **Weather-Based Control**: Automatically adjust blinds based on cloud cover
+- **Sunset-Based Scheduling**: Schedule blind actions relative to sunset time
 
 ## Installation
 
@@ -25,7 +29,7 @@ To install the blind control hub:
 
 1. Make sure you have the required dependencies:
    ```
-   pip3 install flask
+   pip3 install flask astral schedule
    ```
 
 2. Set up the systemd service for automatic startup:
@@ -44,6 +48,24 @@ To install the blind control hub:
 2. From the hub, you can:
    - Click on any controller card to access that specific blind controller
    - Use the Admin Settings panel to add, edit, or remove controllers
+   - Configure the schedule settings for all controllers
+   - View the current weather conditions and blind schedule
+
+## Schedule Configuration
+
+The hub manages the schedule for all controllers through the `hub_config.json` file. The current settings are:
+
+- **Lower Blinds**: 3 hours and 12 minutes before sunset (192 minutes)
+- **Raise Blinds**: Exactly at sunset (0 minutes before)
+
+To modify these settings:
+
+1. Click on "Admin Settings" to expand the admin panel
+2. Scroll down to the "Hub Configuration" section
+3. Update the "Lower Blinds Offset" and "Raise Blinds Offset" values
+4. Click "Save Hub Configuration" to apply the changes
+
+These settings will be used by all controllers connected to the hub.
 
 ## Adding a New Controller
 
@@ -84,7 +106,11 @@ To set up the blind control system on a new Raspberry Pi:
        "weather_api_key": "b8c328a0f8be42ff936210148250404",
        "location": "29607",
        "cloud_threshold": 15,
-       "monitoring_interval": 10
+       "monitoring_interval": 10,
+       "schedule": {
+           "lower_blinds_offset": 192,
+           "raise_blinds_offset": 0
+       }
    }
    EOL
    ```
@@ -103,6 +129,7 @@ The controller will run the `controller.py` script, which provides:
 - A web interface for manual control
 - API endpoints for the hub to send commands
 - Standalone operation if the hub is unreachable
+- A schedule view page to see the current blind schedule
 
 ## Service Management
 
@@ -110,6 +137,12 @@ The controller will run the `controller.py` script, which provides:
 - **Stop the service**: `sudo systemctl stop blind_control_hub`
 - **Check status**: `sudo systemctl status blind_control_hub`
 - **View logs**: `sudo journalctl -u blind_control_hub`
+
+## File Structure
+
+- **main.py**: The hub code that runs on the central Raspberry Pi
+- **hub_config.json**: Hub configuration including schedule settings
+- **config.json**: List of controllers managed by the hub
 
 ## Individual Programming
 
@@ -133,8 +166,17 @@ To update a controller:
 3. Make your changes directly to the code or configuration files
 4. Restart the service: `sudo systemctl restart blind_control_controller`
 
+## Centralized vs. Local Configuration
+
+The system supports both centralized and local configuration:
+
+- **Centralized Configuration**: The hub's `hub_config.json` file contains the schedule settings for all controllers
+- **Local Configuration**: Each controller's `local_config.json` file can override the hub's schedule settings if needed
+- **Standalone Mode**: If a controller loses connection to the hub, it will use its local configuration
+
 ## Troubleshooting
 
 - If the hub interface is not accessible, ensure the service is running with `sudo systemctl status blind_control_hub`
 - If a controller is not accessible from the hub, verify that the URL is correct and that the controller is running
 - For mDNS resolution issues (using .local domains), ensure that Avahi/Bonjour is properly configured on your network
+- If schedule changes don't appear on a controller, check that the controller is connected to the hub and restart the controller service
