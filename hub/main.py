@@ -613,17 +613,6 @@ def index():
     <body>
         <h1>Blind Control Hub</h1>
         
-        <div class="control-buttons">
-            <form action="/raise_all" method="post">
-                <button type="submit" class="up-button">Raise All Blinds</button>
-            </form>
-            <form action="/stop_all" method="post">
-                <button type="submit" class="stop-button">Stop All Blinds</button>
-            </form>
-            <form action="/lower_all" method="post">
-                <button type="submit" class="down-button">Lower All Blinds</button>
-            </form>
-        </div>
         
         <div class="weather-panel">
             <h2>Current Weather</h2>
