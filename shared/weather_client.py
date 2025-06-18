@@ -69,7 +69,7 @@ class SunsetScheduler:
         sunset = self.get_sunset_time(date)
         
         lower_time = sunset - timedelta(minutes=lower_offset_minutes)
-        raise_time = sunset - timedelta(minutes=raise_offset_minutes)
+        raise_time = sunset + timedelta(minutes=raise_offset_minutes)
         
         return lower_time, raise_time
     

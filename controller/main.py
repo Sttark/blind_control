@@ -536,7 +536,7 @@ def view_schedule():
     
     # Calculate scheduled times
     lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
-    raise_time = sunset - timedelta(minutes=RAISE_BLINDS_OFFSET)
+    raise_time = sunset + timedelta(minutes=RAISE_BLINDS_OFFSET)
     
     # Format times for display
     sunset_str = sunset.strftime("%I:%M %p")
@@ -652,7 +652,7 @@ def view_schedule():
             </div>
             
             <div class="schedule-item">
-                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes before sunset){% endif %}</p>
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes after sunset){% endif %}</p>
             </div>
         </div>
         

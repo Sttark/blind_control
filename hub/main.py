@@ -45,7 +45,7 @@ def load_hub_config():
             "monitoring_interval": 10,
             "schedule": {
                 "lower_blinds_offset": 150,  # 2.5 hours before sunset in minutes
-                "raise_blinds_offset": 10    # 10 minutes before sunset in minutes
+                "raise_blinds_offset": 10    # 10 minutes after sunset in minutes
             }
         }
         # Save default configuration
@@ -73,7 +73,7 @@ LOCATION = hub_config.get('location', '29607')  # Zip code
 CLOUD_THRESHOLD = hub_config.get('cloud_threshold', 15)  # Consider sunny if cloud cover is below 15%
 MONITORING_INTERVAL = hub_config.get('monitoring_interval', 10)  # Check weather every 10 minutes (in minutes)
 LOWER_BLINDS_OFFSET = hub_config.get('schedule', {}).get('lower_blinds_offset', 192)  # 3 hours and 12 minutes before sunset
-RAISE_BLINDS_OFFSET = hub_config.get('schedule', {}).get('raise_blinds_offset', 0)  # At sunset
+RAISE_BLINDS_OFFSET = hub_config.get('schedule', {}).get('raise_blinds_offset', 0)  # Minutes after sunset
 
 # Global variables for tracking state
 controller_status = {}  # Store status of each controller
@@ -220,7 +220,7 @@ def schedule_blind_actions():
     
     # Calculate times for lowering and raising blinds
     lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
-    raise_time = sunset - timedelta(minutes=RAISE_BLINDS_OFFSET)
+    raise_time = sunset + timedelta(minutes=RAISE_BLINDS_OFFSET)
     
     # Format times for scheduler (HH:MM format)
     lower_time_str = lower_time.strftime("%H:%M")
@@ -231,7 +231,10 @@ def schedule_blind_actions():
     schedule.every().day.at(raise_time_str).do(raise_blinds_on_all_controllers)
     
     print(f"Scheduled to lower blinds at {lower_time_str} ({LOWER_BLINDS_OFFSET} minutes before sunset, if not too cloudy)")
-    print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
+    if RAISE_BLINDS_OFFSET == 0:
+        print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
+    else:
+        print(f"Scheduled to raise blinds at {raise_time_str} ({RAISE_BLINDS_OFFSET} minutes after sunset)")
 
 # Function to monitor cloud cover and control blinds
 def monitor_cloud_cover():
@@ -645,7 +648,7 @@ def index():
             </div>
             
             <div class="schedule-item">
-                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes before sunset){% endif %}</p>
+                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes after sunset){% endif %}</p>
             </div>
             
             <form action="/reschedule" method="get" style="margin-top: 15px;">
@@ -770,7 +773,7 @@ def index():
                             <input type="text" id="lower_blinds_offset" name="lower_blinds_offset" value="{{ hub_config.schedule.lower_blinds_offset }}" required>
                         </div>
                         <div class="form-group">
-                            <label for="raise_blinds_offset">Raise Blinds Offset (minutes before sunset):</label>
+                            <label for="raise_blinds_offset">Raise Blinds Offset (minutes after sunset):</label>
                             <input type="text" id="raise_blinds_offset" name="raise_blinds_offset" value="{{ hub_config.schedule.raise_blinds_offset }}" required>
                         </div>
                         <button type="submit">Save Hub Configuration</button>
@@ -789,7 +792,7 @@ def index():
         cloud_threshold=CLOUD_THRESHOLD,
         sunset_time=get_sunset_time().strftime("%I:%M %p"),
         lower_time=(get_sunset_time() - timedelta(minutes=LOWER_BLINDS_OFFSET)).strftime("%I:%M %p"),
-        raise_time=(get_sunset_time() - timedelta(minutes=RAISE_BLINDS_OFFSET)).strftime("%I:%M %p"),
+        raise_time=(get_sunset_time() + timedelta(minutes=RAISE_BLINDS_OFFSET)).strftime("%I:%M %p"),
         lower_offset=LOWER_BLINDS_OFFSET,
         raise_offset=RAISE_BLINDS_OFFSET)
 
