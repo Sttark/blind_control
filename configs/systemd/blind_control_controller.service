@@ -7,15 +7,15 @@ Wants=network.target
 Type=simple
 User=sttark
 Group=sttark
-WorkingDirectory=/home/sttark/blind_control
-ExecStart=/usr/bin/python3 /home/sttark/blind_control/controller/main.py
+WorkingDirectory=/opt/blind_control
+ExecStart=/usr/bin/python3 /opt/blind_control/controller/main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
 # Environment variables
-Environment=PYTHONPATH=/home/sttark/blind_control
+Environment=PYTHONPATH=/opt/blind_control
 
 [Install]
 WantedBy=multi-user.target

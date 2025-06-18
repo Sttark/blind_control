@@ -119,7 +119,7 @@ sudo systemctl stop blind_control_controller 2>/dev/null || true
 
 # Create application directory
 sudo mkdir -p /opt/blind_control
-sudo chown pi:pi /opt/blind_control
+sudo chown sttark:sttark /opt/blind_control
 
 # Copy application files
 cp -r blind_control/* /opt/blind_control/
@@ -130,7 +130,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable blind_control_controller
 
 # Install Python dependencies
-pip3 install flask RPi.GPIO astral schedule requests
+pip3 install --break-system-packages flask RPi.GPIO astral schedule requests
 
 # Start service
 sudo systemctl start blind_control_controller
