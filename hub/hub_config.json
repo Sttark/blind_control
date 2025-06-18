@@ -1,7 +1,7 @@
 {
     "weather_api_key": "b8c328a0f8be42ff936210148250404",
     "location": "29607",
-    "cloud_threshold": 15,
+    "cloud_threshold": 100,
     "monitoring_interval": 10,
     "schedule": {
         "lower_blinds_offset": 192,
