@@ -25,6 +25,9 @@ MONITORING_INTERVAL = config_manager.get('monitoring_interval', 10)
 LOWER_BLINDS_OFFSET = config_manager.get('schedule.lower_blinds_offset', 192)
 RAISE_BLINDS_OFFSET = config_manager.get('schedule.raise_blinds_offset', 0)
 
+# Channel settings
+DEFAULT_CHANNEL = config_manager.get('default_channel', 0)  # 0 = All Channels, 1-16 = specific channel
+
 # GPIO Pin Configuration
 REMOTE_POWER_PIN = 4
 BUTTON_PINS = {
@@ -36,7 +39,8 @@ BUTTON_PINS = {
 }
 
 # Initialize GPIO Controller
-gpio_controller = GPIOController(REMOTE_POWER_PIN, BUTTON_PINS)
+TEST_MODE = config_manager.get("test_mode", False)
+gpio_controller = GPIOController(REMOTE_POWER_PIN, BUTTON_PINS, TEST_MODE, DEFAULT_CHANNEL)
 sunset_scheduler = SunsetScheduler()
 
 app = Flask(__name__)

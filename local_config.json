@@ -8,5 +8,6 @@
     "schedule": {
         "lower_blinds_offset": 192,
         "raise_blinds_offset": 0
-    }
+    },
+    "default_channel": 1
 }

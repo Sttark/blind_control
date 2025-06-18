@@ -4,7 +4,7 @@
     "cloud_threshold": 100,
     "monitoring_interval": 10,
     "schedule": {
-        "lower_blinds_offset": 192,
+        "lower_blinds_offset": 240,
         "raise_blinds_offset": 0
     }
 }

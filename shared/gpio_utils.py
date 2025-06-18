@@ -13,7 +13,7 @@ except ImportError:
 class GPIOController:
     """GPIO controller for blind remote control"""
     
-    def __init__(self, remote_power_pin: int, button_pins: Dict[str, int], test_mode: bool = False):
+    def __init__(self, remote_power_pin: int, button_pins: Dict[str, int], test_mode: bool = False, default_channel: int = 0):
         self.remote_power_pin = remote_power_pin
         self.button_pins = button_pins
         self.remote_on = False
@@ -21,6 +21,7 @@ class GPIOController:
         self.channel_selection_in_progress = False
         self.blinds_lowered = False
         self.test_mode = test_mode or not GPIO_AVAILABLE
+        self.default_channel = default_channel  # 0 = All Channels, 1-16 = specific channel
         
         # Initialize GPIO only if not in test mode
         if not self.test_mode:
@@ -84,13 +85,22 @@ class GPIOController:
         self.channel_status = "All Channels"
         print("All channels selected")
     
+    def select_default_channel(self) -> None:
+        """Select the configured default channel"""
+        if self.default_channel == 0:
+            # Default to All Channels
+            self.select_all_channels()
+        else:
+            # Select specific channel
+            self.select_channel(self.default_channel)
+    
     def toggle_remote_power(self) -> bool:
         """Toggle remote power on/off"""
         if self.test_mode:
             self.remote_on = not self.remote_on
             if self.remote_on:
                 time.sleep(1)  # Simulate initialization time
-                self.select_all_channels()
+                self.select_default_channel()
             print(f"[TEST MODE] Remote power: {'ON' if self.remote_on else 'OFF'}")
             return self.remote_on
             
@@ -102,7 +112,7 @@ class GPIOController:
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.output(self.remote_power_pin, GPIO.HIGH)
             time.sleep(3)  # Wait for remote to initialize
-            self.select_all_channels()
+            self.select_default_channel()
         
         time.sleep(0.1)  # Small delay to allow GPIO state to settle
         self.update_remote_state()
@@ -114,7 +124,7 @@ class GPIOController:
             if not self.remote_on:
                 self.remote_on = True
                 time.sleep(1)  # Simulate initialization
-                self.select_all_channels()
+                self.select_default_channel()
                 print("[TEST MODE] Remote powered on")
             return
             
@@ -123,7 +133,7 @@ class GPIOController:
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.output(self.remote_power_pin, GPIO.HIGH)
             time.sleep(3)  # Wait for remote to initialize
-            self.select_all_channels()
+            self.select_default_channel()
             time.sleep(1)
     
     def lower_blinds(self) -> bool:
