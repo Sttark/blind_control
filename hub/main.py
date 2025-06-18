@@ -849,7 +849,7 @@ def delete_controller():
 
 @app.route('/update_hub_config', methods=['POST'])
 def update_hub_config():
-    global WEATHER_API_KEY, LOCATION, CLOUD_THRESHOLD, MONITORING_INTERVAL, LOWER_BLINDS_OFFSET, RAISE_BLINDS_OFFSET
+    global WEATHER_API_KEY, LOCATION, CLOUD_THRESHOLD, MONITORING_INTERVAL, LOWER_BLINDS_OFFSET, RAISE_BLINDS_OFFSET, hub_config
     
     # Get form data
     weather_api_key = request.form.get('weather_api_key')
