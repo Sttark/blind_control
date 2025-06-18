@@ -88,7 +88,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{{ location_name }} Blind Control</title>
+        <title>{{ location_name }}</title>
         <style>
             * {
                 box-sizing: border-box;
@@ -354,7 +354,7 @@ def index():
         </script>
     </head>
     <body>
-        <h1>{{ location_name }} Blind Control</h1>
+        <h1>{{ location_name }}</h1>
         
         <div style="margin-bottom: 15px; text-align: center;">
             <a href="{{ hub_url }}" style="display: inline-block; background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">

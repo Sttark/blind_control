@@ -4,6 +4,11 @@
             "name": "Blind Control, South Building B",
             "url": "http://192.168.4.202:5000/",
             "description": "Controls for South Building B blinds"
+        },
+        {
+            "name": "Blind Control, North Building #1",
+            "url": "http://192.168.4.103:5000/",
+            "description": "Blinds for production in North Building"
         }
     ]
 }
