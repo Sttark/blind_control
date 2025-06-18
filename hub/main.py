@@ -803,15 +803,106 @@ def add_controller():
     if not name or not url:
         return "Name and URL are required", 400
     
-    config = load_config()
-    config['controllers'].append({
-        'name': name,
-        'url': url,
-        'description': description
-    })
-    save_config(config)
+    # Extract IP address from URL
+    import re
+    ip_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', url)
+    if not ip_match:
+        return "Invalid URL format - could not extract IP address", 400
     
-    return redirect(url_for('index'))
+    target_ip = ip_match.group(1)
+    
+    # Deploy to the target Pi automatically
+    deployment_result = deploy_to_pi(name, target_ip)
+    
+    if deployment_result['success']:
+        # Add to hub config only if deployment succeeded
+        config = load_config()
+        config['controllers'].append({
+            'name': name,
+            'url': url,
+            'description': description
+        })
+        save_config(config)
+        
+        return redirect(url_for('index'))
+    else:
+        # Return error message if deployment failed
+        return f"Deployment failed: {deployment_result['error']}", 500
+
+def deploy_to_pi(name, target_ip):
+    """Deploy controller to a target Pi automatically"""
+    import subprocess
+    import tempfile
+    import os
+    
+    try:
+        # Create deployment script
+        script_content = f'''#!/bin/bash
+set -e
+
+echo "=== Automated Deployment to {target_ip} ==="
+
+# Test SSH connectivity first
+if ! sshpass -p "Sttark#1" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no sttark@{target_ip} "echo 'SSH connection successful'"; then
+    echo "ERROR: Cannot connect to {target_ip} via SSH"
+    exit 1
+fi
+
+# Clean up any existing installation
+echo "Cleaning up existing installation..."
+sshpass -p "Sttark#1" ssh -o StrictHostKeyChecking=no sttark@{target_ip} "
+    sudo systemctl stop blind_control_controller 2>/dev/null || true
+    sudo systemctl stop blind_control 2>/dev/null || true
+    sudo systemctl disable blind_control_controller 2>/dev/null || true
+    sudo systemctl disable blind_control 2>/dev/null || true
+    sudo rm -f /etc/systemd/system/blind_control*.service
+    sudo systemctl daemon-reload
+    sudo rm -rf /opt/blind_control
+    rm -rf /home/sttark/blind_control
+    pkill -f 'python.*blind' || true
+"
+
+# Clone fresh repository
+echo "Installing fresh code..."
+sshpass -p "Sttark#1" ssh -o StrictHostKeyChecking=no sttark@{target_ip} "
+    cd /home/sttark
+    git clone https://github.com/Sttark/blind_control.git
+    cd blind_control
+"
+
+# Run deployment script
+echo "Running deployment..."
+sshpass -p "Sttark#1" ssh -o StrictHostKeyChecking=no sttark@{target_ip} "
+    cd /home/sttark/blind_control
+    ./deploy/deploy_controller.sh '{name}'
+"
+
+echo "Deployment completed successfully!"
+'''
+        
+        # Write script to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+            f.write(script_content)
+            script_path = f.name
+        
+        # Make script executable
+        os.chmod(script_path, 0o755)
+        
+        # Execute deployment script
+        result = subprocess.run([script_path], capture_output=True, text=True, timeout=300)
+        
+        # Clean up script file
+        os.unlink(script_path)
+        
+        if result.returncode == 0:
+            return {{'success': True, 'output': result.stdout}}
+        else:
+            return {{'success': False, 'error': result.stderr or result.stdout}}
+            
+    except subprocess.TimeoutExpired:
+        return {{'success': False, 'error': 'Deployment timed out after 5 minutes'}}
+    except Exception as e:
+        return {{'success': False, 'error': str(e)}}
 
 @app.route('/edit_controller', methods=['POST'])
 def edit_controller():
