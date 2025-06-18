@@ -795,6 +795,7 @@ def index():
 
 @app.route('/add_controller', methods=['POST'])
 def add_controller():
+    global config
     name = request.form.get('name')
     url = request.form.get('url')
     description = request.form.get('description', '')
@@ -814,6 +815,7 @@ def add_controller():
 
 @app.route('/edit_controller', methods=['POST'])
 def edit_controller():
+    global config
     index = int(request.form.get('index'))
     name = request.form.get('name')
     url = request.form.get('url')
@@ -835,6 +837,7 @@ def edit_controller():
 
 @app.route('/delete_controller', methods=['POST'])
 def delete_controller():
+    global config
     index = int(request.form.get('index'))
     
     config = load_config()
