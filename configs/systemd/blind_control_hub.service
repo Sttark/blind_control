@@ -5,17 +5,17 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/opt/blind_control
-ExecStart=/usr/bin/python3 /opt/blind_control/hub/main.py
+User=sttark
+Group=sttark
+WorkingDirectory=/home/sttark/blind_control/hub
+ExecStart=/usr/bin/python3 /home/sttark/blind_control/hub/main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
 # Environment variables
-Environment=PYTHONPATH=/opt/blind_control
+Environment=PYTHONPATH=/home/sttark/blind_control
 
 [Install]
 WantedBy=multi-user.target

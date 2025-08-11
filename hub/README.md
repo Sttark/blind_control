@@ -80,42 +80,30 @@ These settings will be used by all controllers connected to the hub.
 
 To set up the blind control system on a new Raspberry Pi:
 
-1. SSH into your Raspberry Pi:
+1. Clone the repository directly on the target Pi:
    ```
-   ssh pi@your-raspberry-pi-ip
-   ```
-
-2. Clone the repository:
-   ```
+   cd /home/sttark
    git clone https://github.com/Sttark/blind_control.git
    cd blind_control
    ```
 
-3. Install the required dependencies:
+2. Run the simple setup script:
    ```
-   sudo apt update
-   sudo apt install -y python3-flask python3-rpi.gpio python3-astral python3-schedule
-   ```
-
-4. Create a local configuration file with your location-specific settings:
-   ```
-   cat > local_config.json << EOL
-   {
-       "location_name": "Your Location Name",
-       "hub_url": "http://192.168.4.202:5001/",
-       "weather_api_key": "b8c328a0f8be42ff936210148250404",
-       "location": "29607",
-       "cloud_threshold": 15,
-       "monitoring_interval": 10,
-       "schedule": {
-           "lower_blinds_offset": 192,
-           "raise_blinds_offset": 0
-       }
-   }
-   EOL
+   ./start_controller.sh
    ```
 
-5. Set up the systemd service for automatic startup:
+   The script automatically:
+   - Installs required dependencies
+   - Creates default configuration
+   - Sets up and starts the systemd service
+   - Shows the Pi's IP address
+
+3. Add the controller to the hub via the admin panel:
+   - Go to: `http://[hub-ip]:5001`
+   - Click "Add New Controller"
+   - Enter controller details using the IP from step 2
+
+4. Alternative manual service setup (if needed):
    ```
    sudo cp blind_control_controller.service /etc/systemd/system/
    sudo systemctl daemon-reload

@@ -139,50 +139,34 @@ This project now supports multiple blind controllers across different locations 
 
 To set up the blind control system on a new Raspberry Pi:
 
-1. SSH into your Raspberry Pi:
+1. Clone the repository directly on the target Pi:
    ```
-   ssh pi@your-raspberry-pi-ip
-   ```
-
-2. Clone the repository:
-   ```
+   cd /home/sttark
    git clone https://github.com/Sttark/blind_control.git
    cd blind_control
    ```
 
-3. Install the required dependencies:
+2. Run the simple setup script:
    ```
-   sudo apt update
-   sudo apt install -y python3-flask python3-rpi.gpio python3-astral python3-schedule
-   ```
-
-4. Create a local configuration file with your location-specific settings:
-   ```
-   cat > local_config.json << EOL
-   {
-       "location_name": "Your Location Name",
-       "hub_url": "http://192.168.4.202:5001/",
-       "weather_api_key": "b8c328a0f8be42ff936210148250404",
-       "location": "29607",
-       "cloud_threshold": 15,
-       "monitoring_interval": 10,
-       "schedule": {
-           "lower_blinds_offset": 192,
-           "raise_blinds_offset": 0
-       }
-   }
-   EOL
+   ./start_controller.sh
    ```
 
-5. Set up the systemd service for automatic startup:
-   ```
-   sudo cp blind_control_controller.service /etc/systemd/system/
-   sudo systemctl daemon-reload
-   sudo systemctl enable blind_control_controller
-   sudo systemctl start blind_control_controller
-   ```
+   The script will:
+   - Install required dependencies
+   - Create default configuration
+   - Set up and start the systemd service
+   - Display the Pi's IP address
 
-6. Once installation is complete, add the new controller to your hub using the Admin Settings panel.
+3. Add the controller to your hub:
+   - Access the hub admin panel: `http://192.168.4.202:5001`
+   - Click "Add New Controller"
+   - Fill in the form:
+     - **Name**: Choose a descriptive name (e.g., "North Building Controller")
+     - **URL**: `http://[pi-ip]:5000/` (from step 2 output)
+     - **Description**: Location description
+   - Click "Add Controller"
+
+That's it! The new controller is ready to use.
 
 For more details on the hub setup and usage, see the [Hub README](hub/README.md).
 
