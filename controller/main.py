@@ -690,18 +690,22 @@ def execute_command():
     global last_hub_contact
     last_hub_contact = datetime.now()  # Update last contact time
     
+    print(f"DEBUG: API command endpoint reached")
     if not request.json:
         return jsonify({'success': False, 'error': 'Invalid request format'}), 400
     
     command = request.json.get('command')
     params = request.json.get('params', {})
+    print(f"DEBUG: Received command: {command}")
     
     if command == 'raise_blinds':
         success = raise_blinds()
         return jsonify({'success': success})
     
     elif command == 'lower_blinds':
+        print(f"DEBUG: Executing lower_blinds command")
         success = lower_blinds()
+        print(f"DEBUG: lower_blinds returned: {success}")
         return jsonify({'success': success})
     
     elif command == 'stop_blinds':

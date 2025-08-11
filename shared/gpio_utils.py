@@ -85,11 +85,10 @@ class GPIOController:
     def _init_rpi_gpio(self):
         """Initialize using RPi.GPIO library"""
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.remote_power_pin, GPIO.OUT)
-        GPIO.output(self.remote_power_pin, GPIO.LOW)
+        self._set_pin_output(self.remote_power_pin, False)
         
         for pin in self.button_pins.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            self._set_pin_input(pin)
     
     def _init_gpiozero(self):
         """Initialize using gpiozero library"""
@@ -118,6 +117,7 @@ class GPIOController:
     
     def _set_pin_output(self, pin: int, value: bool):
         """Set GPIO pin to output mode and value"""
+        print(f"GPIO: Setting pin {pin} to {'HIGH' if value else 'LOW'} using {self.gpio_library}")
         try:
             if self.gpio_library == "RPi.GPIO":
                 GPIO.setup(pin, GPIO.OUT)
@@ -128,9 +128,20 @@ class GPIOController:
                 if pin == self.remote_power_pin:
                     self.gpio_devices['power'].on() if value else self.gpio_devices['power'].off()
                 else:
-                    # Create temporary output device for button press
-                    temp_device = OutputDevice(pin, initial_value=value)
-                    temp_device.close() if not value else None
+                    # Close existing input device for this pin first
+                    for name, button_pin in self.button_pins.items():
+                        if button_pin == pin and f'button_{name}' in self.gpio_devices:
+                            self.gpio_devices[f'button_{name}'].close()
+                            del self.gpio_devices[f'button_{name}']
+                            break
+                    
+                    # Create/recreate output device for button press
+                    # Store in a temporary dict to keep it alive during button press
+                    if not hasattr(self, '_temp_outputs'):
+                        self._temp_outputs = {}
+                    if pin in self._temp_outputs:
+                        self._temp_outputs[pin].close()
+                    self._temp_outputs[pin] = OutputDevice(pin, initial_value=value)
             elif self.gpio_library == "lgpio":
                 import lgpio
                 # Reclaim pin as output if needed
@@ -149,6 +160,10 @@ class GPIOController:
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             elif self.gpio_library == "gpiozero":
                 from gpiozero import InputDevice
+                # Clean up temporary output device if it exists
+                if hasattr(self, '_temp_outputs') and pin in self._temp_outputs:
+                    self._temp_outputs[pin].close()
+                    del self._temp_outputs[pin]
                 # Recreate as input device
                 for name, button_pin in self.button_pins.items():
                     if button_pin == pin:
@@ -271,8 +286,8 @@ class GPIOController:
             
         if not self.check_remote_power_state():
             for pin in self.button_pins.values():
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.output(self.remote_power_pin, GPIO.HIGH)
+                self._set_pin_input(pin)
+            self._set_pin_output(self.remote_power_pin, True)
             time.sleep(3)  # Wait for remote to initialize
             self.select_default_channel()
             time.sleep(1)
@@ -313,10 +328,9 @@ class GPIOController:
         if self.remote_on and "Up" in self.button_pins:
             def press_hold_release():
                 pin = self.button_pins["Up"]
-                GPIO.setup(pin, GPIO.OUT)
-                GPIO.output(pin, GPIO.LOW)
+                self._set_pin_output(pin, False)
                 time.sleep(5)  # Hold for 5 seconds
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                self._set_pin_input(pin)
                 print("Held Up button for 5 seconds (Pairing)")
             threading.Thread(target=press_hold_release).start()
     
@@ -337,13 +351,13 @@ class GPIOController:
                     return
                 
                 # Cut power to the remote
-                GPIO.output(self.remote_power_pin, GPIO.LOW)
+                self._set_pin_output(self.remote_power_pin, False)
                 time.sleep(2)  # Wait for 2 seconds
                 
                 # Turn power back on
                 for pin in self.button_pins.values():
-                    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                GPIO.output(self.remote_power_pin, GPIO.HIGH)
+                    self._set_pin_input(pin)
+                self._set_pin_output(self.remote_power_pin, True)
                 time.sleep(3)  # Wait for remote to initialize
                 
                 # Channel 1 is the default after power on
@@ -371,10 +385,27 @@ class GPIOController:
             print("[TEST MODE] GPIO cleanup (simulated)")
             return
             
-        GPIO.output(self.remote_power_pin, GPIO.LOW)
-        for pin in self.button_pins.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.cleanup()
+        try:
+            self._set_pin_output(self.remote_power_pin, False)
+            for pin in self.button_pins.values():
+                self._set_pin_input(pin)
+            
+            # Clean up based on GPIO library
+            if self.gpio_library == "RPi.GPIO":
+                GPIO.cleanup()
+            elif self.gpio_library == "gpiozero":
+                # Close all gpiozero devices
+                for device in self.gpio_devices.values():
+                    device.close()
+                if hasattr(self, '_temp_outputs'):
+                    for device in self._temp_outputs.values():
+                        device.close()
+            elif self.gpio_library == "lgpio":
+                import lgpio
+                if self.lgpio_handle is not None:
+                    lgpio.gpiochip_close(self.lgpio_handle)
+        except Exception as e:
+            print(f"GPIO: Error during cleanup: {e}")
     
     def start_monitoring(self, monitor_callback: Optional[Callable] = None) -> None:
         """Start background monitoring of remote power state"""

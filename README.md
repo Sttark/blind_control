@@ -196,6 +196,22 @@ The system uses a configuration-based approach that separates code from configur
 - If the hub interface is not accessible, check its service status with `sudo systemctl status blind_control_hub`
 - If schedule changes don't appear on a controller, check that the controller is connected to the hub and restart the controller service
 
+### GPIO Library Compatibility
+
+The system automatically detects and uses the most appropriate GPIO library for your Raspberry Pi:
+
+1. **RPi.GPIO**: Primary choice for older Pi models and kernels
+2. **gpiozero with lgpio backend**: Fallback for newer kernels (Pi 5 compatible)
+3. **lgpio directly**: Last resort fallback
+4. **Test mode**: Safe fallback when no GPIO libraries work
+
+If you encounter GPIO issues after a kernel update:
+- Restart the service: `sudo systemctl restart blind_control_controller`
+- Check service logs: `journalctl -u blind_control_controller -n 50`
+- The system will automatically fall back to a compatible GPIO library
+
+**Recent Updates (2025-08-11)**: Fixed GPIO pin management for gpiozero library to resolve conflicts after kernel update to 6.12.34+rpt-rpi-2712
+
 ## Author
 
 [Ryan Quinn](https://github.com/Sttark)
