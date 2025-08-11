@@ -2,16 +2,47 @@ import time
 import threading
 from typing import Dict, Callable, Optional
 
-# Test mode: mock GPIO if not available or if test_mode is enabled
+# Multi-library GPIO support for maximum compatibility
+GPIO_LIBRARY = None
+GPIO_AVAILABLE = False
+
+# Try different GPIO libraries in order of preference
 try:
+    # First try RPi.GPIO (works on older Pi models and kernels)
     import RPi.GPIO as GPIO
+    # Test if RPi.GPIO actually works by attempting setmode
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setmode(GPIO.BOARD)  # Reset back
+    GPIO_LIBRARY = "RPi.GPIO"
     GPIO_AVAILABLE = True
-except ImportError:
-    GPIO_AVAILABLE = False
-    print("RPi.GPIO not available - running in test mode")
+    print(f"GPIO: Using RPi.GPIO v{GPIO.VERSION}")
+except Exception as e:
+    print(f"GPIO: RPi.GPIO failed: {e}")
+    try:
+        # Fall back to gpiozero with lgpio backend (Pi 5 compatible)
+        import gpiozero
+        from gpiozero import Device
+        from gpiozero.pins.lgpio import LGPIOFactory
+        Device.pin_factory = LGPIOFactory()
+        GPIO_LIBRARY = "gpiozero"
+        GPIO_AVAILABLE = True
+        print("GPIO: Using gpiozero with lgpio backend")
+    except Exception as e2:
+        print(f"GPIO: gpiozero failed: {e2}")
+        try:
+            # Last resort: try lgpio directly
+            import lgpio
+            GPIO_LIBRARY = "lgpio"
+            GPIO_AVAILABLE = True
+            print("GPIO: Using lgpio directly")
+        except Exception as e3:
+            print(f"GPIO: lgpio failed: {e3}")
+            GPIO_LIBRARY = None
+            GPIO_AVAILABLE = False
+            print("GPIO: All GPIO libraries failed - running in test mode")
 
 class GPIOController:
-    """GPIO controller for blind remote control"""
+    """GPIO controller for blind remote control - supports multiple GPIO libraries"""
     
     def __init__(self, remote_power_pin: int, button_pins: Dict[str, int], test_mode: bool = False, default_channel: int = 0):
         self.remote_power_pin = remote_power_pin
@@ -22,23 +53,135 @@ class GPIOController:
         self.blinds_lowered = False
         self.test_mode = test_mode or not GPIO_AVAILABLE
         self.default_channel = default_channel  # 0 = All Channels, 1-16 = specific channel
+        self.gpio_library = GPIO_LIBRARY
+        
+        # GPIO device objects for gpiozero/lgpio
+        self.gpio_devices = {}
+        self.lgpio_handle = None
         
         # Initialize GPIO only if not in test mode
         if not self.test_mode:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.remote_power_pin, GPIO.OUT)
-            GPIO.output(self.remote_power_pin, GPIO.LOW)
-            
-            for pin in self.button_pins.values():
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            print(f"GPIO: Initializing {self.gpio_library} GPIO control")
+            self._init_gpio()
         else:
             print("Running in TEST MODE - GPIO operations will be mocked")
+    
+    def _init_gpio(self):
+        """Initialize GPIO based on available library"""
+        try:
+            if self.gpio_library == "RPi.GPIO":
+                self._init_rpi_gpio()
+            elif self.gpio_library == "gpiozero":
+                self._init_gpiozero()
+            elif self.gpio_library == "lgpio":
+                self._init_lgpio()
+            else:
+                raise Exception("No GPIO library available")
+        except Exception as e:
+            print(f"GPIO: Initialization failed: {e}")
+            print("GPIO: Falling back to test mode")
+            self.test_mode = True
+    
+    def _init_rpi_gpio(self):
+        """Initialize using RPi.GPIO library"""
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.remote_power_pin, GPIO.OUT)
+        GPIO.output(self.remote_power_pin, GPIO.LOW)
+        
+        for pin in self.button_pins.values():
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    
+    def _init_gpiozero(self):
+        """Initialize using gpiozero library"""
+        from gpiozero import OutputDevice, InputDevice
+        
+        # Create output device for remote power
+        self.gpio_devices['power'] = OutputDevice(self.remote_power_pin, initial_value=False)
+        
+        # Create input devices for buttons (with pull-up)
+        for name, pin in self.button_pins.items():
+            self.gpio_devices[f'button_{name}'] = InputDevice(pin, pull_up=True)
+    
+    def _init_lgpio(self):
+        """Initialize using lgpio directly"""
+        import lgpio
+        
+        # Open GPIO chip
+        self.lgpio_handle = lgpio.gpiochip_open(0)
+        
+        # Configure remote power pin as output
+        lgpio.gpio_claim_output(self.lgpio_handle, self.remote_power_pin, 0)
+        
+        # Configure button pins as inputs with pull-up
+        for pin in self.button_pins.values():
+            lgpio.gpio_claim_input(self.lgpio_handle, pin, lgpio.SET_PULL_UP)
+    
+    def _set_pin_output(self, pin: int, value: bool):
+        """Set GPIO pin to output mode and value"""
+        try:
+            if self.gpio_library == "RPi.GPIO":
+                GPIO.setup(pin, GPIO.OUT)
+                GPIO.output(pin, GPIO.HIGH if value else GPIO.LOW)
+            elif self.gpio_library == "gpiozero":
+                # For gpiozero, we need to reconfigure the pin as output
+                from gpiozero import OutputDevice
+                if pin == self.remote_power_pin:
+                    self.gpio_devices['power'].on() if value else self.gpio_devices['power'].off()
+                else:
+                    # Create temporary output device for button press
+                    temp_device = OutputDevice(pin, initial_value=value)
+                    temp_device.close() if not value else None
+            elif self.gpio_library == "lgpio":
+                import lgpio
+                # Reclaim pin as output if needed
+                try:
+                    lgpio.gpio_free(self.lgpio_handle, pin)
+                except:
+                    pass
+                lgpio.gpio_claim_output(self.lgpio_handle, pin, 1 if value else 0)
+        except Exception as e:
+            print(f"GPIO: Error setting pin {pin} to {value}: {e}")
+    
+    def _set_pin_input(self, pin: int):
+        """Set GPIO pin back to input mode with pull-up"""
+        try:
+            if self.gpio_library == "RPi.GPIO":
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            elif self.gpio_library == "gpiozero":
+                from gpiozero import InputDevice
+                # Recreate as input device
+                for name, button_pin in self.button_pins.items():
+                    if button_pin == pin:
+                        if f'button_{name}' in self.gpio_devices:
+                            self.gpio_devices[f'button_{name}'].close()
+                        self.gpio_devices[f'button_{name}'] = InputDevice(pin, pull_up=True)
+                        break
+            elif self.gpio_library == "lgpio":
+                import lgpio
+                try:
+                    lgpio.gpio_free(self.lgpio_handle, pin)
+                except:
+                    pass
+                lgpio.gpio_claim_input(self.lgpio_handle, pin, lgpio.SET_PULL_UP)
+        except Exception as e:
+            print(f"GPIO: Error setting pin {pin} to input: {e}")
     
     def check_remote_power_state(self) -> bool:
         """Check the actual power state of the remote"""
         if self.test_mode:
             return self.remote_on  # Return the simulated state
-        return GPIO.input(self.remote_power_pin) == GPIO.HIGH
+        
+        try:
+            if self.gpio_library == "RPi.GPIO":
+                return GPIO.input(self.remote_power_pin) == GPIO.HIGH
+            elif self.gpio_library == "gpiozero":
+                return self.gpio_devices['power'].is_active
+            elif self.gpio_library == "lgpio":
+                import lgpio
+                return lgpio.gpio_read(self.lgpio_handle, self.remote_power_pin) == 1
+        except Exception as e:
+            print(f"GPIO: Error reading power state: {e}")
+            return self.remote_on  # Return last known state
     
     def update_remote_state(self) -> None:
         """Update remote_on variable based on actual GPIO state"""
@@ -59,10 +202,9 @@ class GPIOController:
             
         if button_name in self.button_pins:
             pin = self.button_pins[button_name]
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
+            self._set_pin_output(pin, False)  # Press button (LOW)
             time.sleep(duration)
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            self._set_pin_input(pin)  # Release button (back to input with pull-up)
             print(f"Pressed {button_name} button for {duration}s")
             return True
         return False
@@ -76,10 +218,9 @@ class GPIOController:
             
         def press_release():
             pin = self.button_pins["Channel Down"]
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
+            self._set_pin_output(pin, False)  # Press button (LOW)
             time.sleep(1)  # 1 second press
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            self._set_pin_input(pin)  # Release button
         
         threading.Thread(target=press_release).start()
         self.channel_status = "All Channels"
@@ -105,12 +246,12 @@ class GPIOController:
             return self.remote_on
             
         if self.remote_on:
-            GPIO.output(self.remote_power_pin, GPIO.LOW)
+            self._set_pin_output(self.remote_power_pin, False)  # Turn off
         else:
             # Reset all button pins before turning on
             for pin in self.button_pins.values():
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.output(self.remote_power_pin, GPIO.HIGH)
+                self._set_pin_input(pin)
+            self._set_pin_output(self.remote_power_pin, True)  # Turn on
             time.sleep(3)  # Wait for remote to initialize
             self.select_default_channel()
         

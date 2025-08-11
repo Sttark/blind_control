@@ -71,7 +71,7 @@ log_success "Default configuration created"
 
 # Install Python dependencies
 log_info "Installing Python dependencies..."
-if pip3 install --break-system-packages flask RPi.GPIO astral schedule requests; then
+if pip3 install --break-system-packages flask RPi.GPIO gpiozero lgpio astral schedule requests; then
     log_success "Dependencies installed"
 else
     log_warning "Some dependencies may have failed to install. The controller might still work."
