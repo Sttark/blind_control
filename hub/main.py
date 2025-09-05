@@ -46,6 +46,11 @@ def load_hub_config():
             "schedule": {
                 "lower_blinds_offset": 150,  # 2.5 hours before sunset in minutes
                 "raise_blinds_offset": 10    # 10 minutes after sunset in minutes
+            },
+            "test_mode": {
+                "enabled": False,
+                "lower_time": "14:00",  # 2:00 PM
+                "raise_time": "18:00"   # 6:00 PM
             }
         }
         # Save default configuration
@@ -74,6 +79,11 @@ CLOUD_THRESHOLD = hub_config.get('cloud_threshold', 15)  # Consider sunny if clo
 MONITORING_INTERVAL = hub_config.get('monitoring_interval', 10)  # Check weather every 10 minutes (in minutes)
 LOWER_BLINDS_OFFSET = hub_config.get('schedule', {}).get('lower_blinds_offset', 192)  # 3 hours and 12 minutes before sunset
 RAISE_BLINDS_OFFSET = hub_config.get('schedule', {}).get('raise_blinds_offset', 0)  # Minutes after sunset
+
+# Test mode configuration
+TEST_MODE_ENABLED = hub_config.get('test_mode', {}).get('enabled', False)
+TEST_LOWER_TIME = hub_config.get('test_mode', {}).get('lower_time', '14:00')
+TEST_RAISE_TIME = hub_config.get('test_mode', {}).get('raise_time', '18:00')
 
 # Global variables for tracking state
 controller_status = {}  # Store status of each controller
@@ -215,26 +225,40 @@ def schedule_blind_actions():
     # Clear any existing jobs
     schedule.clear()
     
-    # Get today's sunset time
-    sunset = get_sunset_time()
-    
-    # Calculate times for lowering and raising blinds
-    lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
-    raise_time = sunset + timedelta(minutes=RAISE_BLINDS_OFFSET)
-    
-    # Format times for scheduler (HH:MM format)
-    lower_time_str = lower_time.strftime("%H:%M")
-    raise_time_str = raise_time.strftime("%H:%M")
-    
-    # Schedule the jobs
-    schedule.every().day.at(lower_time_str).do(lower_blinds_on_all_controllers)
-    schedule.every().day.at(raise_time_str).do(raise_blinds_on_all_controllers)
-    
-    print(f"Scheduled to lower blinds at {lower_time_str} ({LOWER_BLINDS_OFFSET} minutes before sunset, if not too cloudy)")
-    if RAISE_BLINDS_OFFSET == 0:
-        print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
+    if TEST_MODE_ENABLED:
+        # Use manual test times
+        lower_time_str = TEST_LOWER_TIME
+        raise_time_str = TEST_RAISE_TIME
+        
+        # Schedule the jobs
+        schedule.every().day.at(lower_time_str).do(lower_blinds_on_all_controllers)
+        schedule.every().day.at(raise_time_str).do(raise_blinds_on_all_controllers)
+        
+        print(f"[TEST MODE] Scheduled to lower blinds at {lower_time_str} (manual test time)")
+        print(f"[TEST MODE] Scheduled to raise blinds at {raise_time_str} (manual test time)")
+        
     else:
-        print(f"Scheduled to raise blinds at {raise_time_str} ({RAISE_BLINDS_OFFSET} minutes after sunset)")
+        # Use sunset-based scheduling
+        # Get today's sunset time
+        sunset = get_sunset_time()
+        
+        # Calculate times for lowering and raising blinds
+        lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
+        raise_time = sunset + timedelta(minutes=RAISE_BLINDS_OFFSET)
+        
+        # Format times for scheduler (HH:MM format)
+        lower_time_str = lower_time.strftime("%H:%M")
+        raise_time_str = raise_time.strftime("%H:%M")
+        
+        # Schedule the jobs
+        schedule.every().day.at(lower_time_str).do(lower_blinds_on_all_controllers)
+        schedule.every().day.at(raise_time_str).do(raise_blinds_on_all_controllers)
+        
+        print(f"Scheduled to lower blinds at {lower_time_str} ({LOWER_BLINDS_OFFSET} minutes before sunset, if not too cloudy)")
+        if RAISE_BLINDS_OFFSET == 0:
+            print(f"Scheduled to raise blinds at {raise_time_str} (at sunset)")
+        else:
+            print(f"Scheduled to raise blinds at {raise_time_str} ({RAISE_BLINDS_OFFSET} minutes after sunset)")
 
 # Function to monitor cloud cover and control blinds
 def monitor_cloud_cover():
@@ -246,6 +270,11 @@ def monitor_cloud_cover():
     monitoring_period_start = None
     
     while True:
+        # Skip cloud monitoring if in test mode
+        if TEST_MODE_ENABLED:
+            print("[TEST MODE] Skipping cloud monitoring - using manual schedule only")
+            time.sleep(MONITORING_INTERVAL * 60)
+            continue
         # Get current time
         now = datetime.now()
         
@@ -680,17 +709,32 @@ def index():
         
         <div class="schedule-panel">
             <h2>Today's Schedule</h2>
-            <div class="schedule-item">
-                <p><strong>Sunset:</strong> <span class="time">{{ sunset_time }}</span></p>
-            </div>
-            
-            <div class="schedule-item">
-                <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> ({{ lower_offset }} minutes before sunset)</p>
-            </div>
-            
-            <div class="schedule-item">
-                <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes after sunset){% endif %}</p>
-            </div>
+            {% if hub_config.test_mode.enabled %}
+                <div style="background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin-bottom: 15px; text-align: center; font-weight: bold;">
+                    🧪 TEST MODE ACTIVE
+                </div>
+                <div class="schedule-item">
+                    <p><strong>Test Lower Time:</strong> <span class="time">{{ hub_config.test_mode.lower_time }}</span></p>
+                </div>
+                <div class="schedule-item">
+                    <p><strong>Test Raise Time:</strong> <span class="time">{{ hub_config.test_mode.raise_time }}</span></p>
+                </div>
+                <div class="schedule-item">
+                    <small style="color: #666;">Weather monitoring and sunset scheduling are disabled in test mode</small>
+                </div>
+            {% else %}
+                <div class="schedule-item">
+                    <p><strong>Sunset:</strong> <span class="time">{{ sunset_time }}</span></p>
+                </div>
+                
+                <div class="schedule-item">
+                    <p><strong>Lower Blinds:</strong> <span class="time">{{ lower_time }}</span> ({{ lower_offset }} minutes before sunset)</p>
+                </div>
+                
+                <div class="schedule-item">
+                    <p><strong>Raise Blinds:</strong> <span class="time">{{ raise_time }}</span> {% if raise_offset == 0 %}(at sunset){% else %}({{ raise_offset }} minutes after sunset){% endif %}</p>
+                </div>
+            {% endif %}
             
             <form action="/reschedule" method="get" style="margin-top: 15px;">
                 <button type="submit">Refresh Schedule</button>
@@ -817,6 +861,25 @@ def index():
                             <label for="raise_blinds_offset">Raise Blinds Offset (minutes after sunset):</label>
                             <input type="text" id="raise_blinds_offset" name="raise_blinds_offset" value="{{ hub_config.schedule.raise_blinds_offset }}" required>
                         </div>
+                        
+                        <h4 style="margin-top: 30px; color: #FF9800;">Test Mode Settings</h4>
+                        <div class="form-group">
+                            <label for="test_mode_enabled">
+                                <input type="checkbox" id="test_mode_enabled" name="test_mode_enabled" value="true" {% if hub_config.test_mode.enabled %}checked{% endif %} style="margin-right: 8px;">
+                                Enable Test Mode (ignore sunset times and weather)
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="test_lower_time">Test Lower Time (HH:MM):</label>
+                            <input type="time" id="test_lower_time" name="test_lower_time" value="{{ hub_config.test_mode.lower_time }}">
+                            <small style="color: #666;">Time to lower blinds during testing</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="test_raise_time">Test Raise Time (HH:MM):</label>
+                            <input type="time" id="test_raise_time" name="test_raise_time" value="{{ hub_config.test_mode.raise_time }}">
+                            <small style="color: #666;">Time to raise blinds during testing</small>
+                        </div>
+                        
                         <button type="submit">Save Hub Configuration</button>
                     </form>
                 </div>
@@ -894,6 +957,7 @@ def delete_controller():
 @app.route('/update_hub_config', methods=['POST'])
 def update_hub_config():
     global WEATHER_API_KEY, LOCATION, CLOUD_THRESHOLD, MONITORING_INTERVAL, LOWER_BLINDS_OFFSET, RAISE_BLINDS_OFFSET, hub_config
+    global TEST_MODE_ENABLED, TEST_LOWER_TIME, TEST_RAISE_TIME
     
     # Get form data
     weather_api_key = request.form.get('weather_api_key')
@@ -902,6 +966,11 @@ def update_hub_config():
     monitoring_interval = int(request.form.get('monitoring_interval', 10))
     lower_blinds_offset = int(request.form.get('lower_blinds_offset', 150))
     raise_blinds_offset = int(request.form.get('raise_blinds_offset', 10))
+    
+    # Get test mode data
+    test_mode_enabled = request.form.get('test_mode_enabled') == 'true'
+    test_lower_time = request.form.get('test_lower_time', '14:00')
+    test_raise_time = request.form.get('test_raise_time', '18:00')
     
     # Update hub config
     hub_config = load_hub_config()
@@ -913,6 +982,11 @@ def update_hub_config():
         'lower_blinds_offset': lower_blinds_offset,
         'raise_blinds_offset': raise_blinds_offset
     }
+    hub_config['test_mode'] = {
+        'enabled': test_mode_enabled,
+        'lower_time': test_lower_time,
+        'raise_time': test_raise_time
+    }
     save_hub_config(hub_config)
     
     # Update global variables
@@ -922,6 +996,9 @@ def update_hub_config():
     MONITORING_INTERVAL = monitoring_interval
     LOWER_BLINDS_OFFSET = lower_blinds_offset
     RAISE_BLINDS_OFFSET = raise_blinds_offset
+    TEST_MODE_ENABLED = test_mode_enabled
+    TEST_LOWER_TIME = test_lower_time
+    TEST_RAISE_TIME = test_raise_time
     
     # Reschedule blind actions with new settings
     schedule_blind_actions()

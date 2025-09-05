@@ -6,5 +6,10 @@
     "schedule": {
         "lower_blinds_offset": 240,
         "raise_blinds_offset": 10
+    },
+    "test_mode": {
+        "enabled": true,
+        "lower_time": "10:30",
+        "raise_time": "10:05"
     }
 }
