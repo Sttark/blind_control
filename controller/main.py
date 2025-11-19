@@ -41,7 +41,7 @@ BUTTON_PINS = {
 # Initialize GPIO Controller
 TEST_MODE = config_manager.get("test_mode", False)
 gpio_controller = GPIOController(REMOTE_POWER_PIN, BUTTON_PINS, TEST_MODE, DEFAULT_CHANNEL)
-sunset_scheduler = SunsetScheduler()
+sunset_scheduler = SunsetScheduler(WEATHER_API_KEY, LOCATION)
 
 app = Flask(__name__)
 last_hub_contact = datetime.now()  # Track when we last heard from the hub
@@ -526,22 +526,8 @@ def select_channel():
 
 @app.route('/schedule')
 def view_schedule():
-    from astral import Astral
-    
-    # Get sunset time
-    a = Astral()
-    city = a['New York']
-    sun_info = city.sun(date=datetime.now(), local=True)
-    sunset = sun_info['sunset']
-    
-    # Calculate scheduled times
-    lower_time = sunset - timedelta(minutes=LOWER_BLINDS_OFFSET)
-    raise_time = sunset + timedelta(minutes=RAISE_BLINDS_OFFSET)
-    
-    # Format times for display
-    sunset_str = sunset.strftime("%I:%M %p")
-    lower_time_str = lower_time.strftime("%I:%M %p")
-    raise_time_str = raise_time.strftime("%I:%M %p")
+    schedule_times = sunset_scheduler.format_schedule_times(
+        LOWER_BLINDS_OFFSET, RAISE_BLINDS_OFFSET)
     
     return render_template_string('''
     <!DOCTYPE html>
@@ -645,6 +631,9 @@ def view_schedule():
         <div class="schedule-panel">
             <div class="schedule-item">
                 <p><strong>Today's Sunset:</strong> <span class="time">{{ sunset_time }}</span></p>
+                {% if timezone %}
+                <small style="color: #666;">Timezone: {{ timezone }}</small>
+                {% endif %}
             </div>
             
             <div class="schedule-item">
@@ -661,8 +650,12 @@ def view_schedule():
         </div>
     </body>
     </html>
-    ''', sunset_time=sunset_str, lower_time=lower_time_str, raise_time=raise_time_str, 
-        lower_offset=LOWER_BLINDS_OFFSET, raise_offset=RAISE_BLINDS_OFFSET,
+    ''', sunset_time=schedule_times['sunset_time'],
+        lower_time=schedule_times['lower_time'],
+        raise_time=schedule_times['raise_time'],
+        lower_offset=schedule_times['lower_offset'],
+        raise_offset=schedule_times['raise_offset'],
+        timezone=schedule_times.get('timezone'),
         location_name=LOCATION_NAME, hub_url=HUB_URL, standalone_mode=standalone_mode)
 
 @app.route('/cleanup')

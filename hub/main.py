@@ -6,7 +6,8 @@ import time
 import threading
 import schedule
 from datetime import datetime, timedelta
-from astral import Astral
+from astral import Location
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -88,20 +89,66 @@ TEST_RAISE_TIME = hub_config.get('test_mode', {}).get('raise_time', '18:00')
 # Global variables for tracking state
 controller_status = {}  # Store status of each controller
 blinds_lowered = False  # Track if blinds are currently lowered
+location_details_cache = None  # Cache for location data retrieved from weather API
+
+# Function to get location coordinates and timezone based on configured LOCATION
+def get_location_details():
+    global location_details_cache
+
+    if location_details_cache:
+        return location_details_cache
+
+    try:
+        url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={LOCATION}&aqi=no"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        location_info = data.get('location', {})
+
+        latitude = location_info.get('lat')
+        longitude = location_info.get('lon')
+        timezone_id = location_info.get('tz_id')
+
+        if latitude is None or longitude is None or timezone_id is None:
+            raise ValueError("Incomplete location information in weather API response")
+
+        location_details_cache = {
+            "latitude": float(latitude),
+            "longitude": float(longitude),
+            "timezone": timezone_id
+        }
+
+        print(f"Loaded location data: lat={latitude}, lon={longitude}, tz={timezone_id}")
+    except Exception as e:
+        print(f"Error retrieving location info for {LOCATION}: {e}")
+        print("Falling back to default New York City coordinates.")
+        location_details_cache = {
+            "latitude": 40.7128,
+            "longitude": -74.0060,
+            "timezone": "America/New_York"
+        }
+
+    return location_details_cache
 
 # Function to get sunset time for the current day
 def get_sunset_time():
-    # Initialize Astral
-    a = Astral()
-    # New York City coordinates (approximate for East Coast)
-    # You may need to adjust these coordinates for your specific location
-    city = a['New York']
-    
-    # Get today's sun information
-    sun_info = city.sun(date=datetime.now(), local=True)
+    location_details = get_location_details()
+
+    # Initialize Astral Location with actual coordinates/timezone
+    location = Location()
+    location.name = "Configured Location"
+    location.region = str(LOCATION)
+    location.latitude = location_details['latitude']
+    location.longitude = location_details['longitude']
+    location.timezone = location_details['timezone']
+    location.elevation = 0
+
+    # Calculate today's sunset time using the configured timezone
+    location_now = datetime.now(ZoneInfo(location.timezone))
+    sun_info = location.sun(date=location_now, local=True)
     sunset = sun_info['sunset']
-    
-    print(f"Today's sunset time: {sunset.strftime('%H:%M:%S')}")
+
+    print(f"Today's sunset time ({location.timezone}): {sunset.strftime('%H:%M:%S')}")
     return sunset
 
 # Function to get current cloud cover percentage
