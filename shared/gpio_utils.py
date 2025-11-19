@@ -306,6 +306,8 @@ class GPIOController:
         print("[TEST MODE] Raising blinds" if self.test_mode else "Raising blinds")
         self.power_on_remote()
         self.press_button_action("Up")
+        time.sleep(5)
+        self.press_button_action("Up")
         self.blinds_lowered = False
         print("[TEST MODE] Blinds raised" if self.test_mode else "Blinds raised")
         return True
