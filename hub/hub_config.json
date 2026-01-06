@@ -4,12 +4,12 @@
     "cloud_threshold": 100,
     "monitoring_interval": 10,
     "schedule": {
-        "lower_blinds_offset": 240,
+        "lower_blinds_offset": 150,
         "raise_blinds_offset": 10
     },
     "test_mode": {
-        "enabled": true,
-        "lower_time": "10:30",
-        "raise_time": "10:05"
+        "enabled": false,
+        "lower_time": "17:11",
+        "raise_time": "17:15"
     }
 }

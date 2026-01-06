@@ -269,6 +269,10 @@ def raise_blinds_on_all_controllers():
 
 # Function to schedule blind actions for the day
 def schedule_blind_actions():
+    global location_details_cache
+    # If we're stuck on the fallback location, try to refresh once; otherwise reuse cache
+    if location_details_cache and location_details_cache.get("timezone") == "America/New_York" and str(LOCATION) != "10001":
+        location_details_cache = None
     # Clear any existing jobs
     schedule.clear()
     

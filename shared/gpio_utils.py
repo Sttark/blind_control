@@ -309,7 +309,7 @@ class GPIOController:
         for attempt in range(3):
             self.press_button_action("Up")
             if attempt < 2:
-                time.sleep(10)  # Dwell time between presses
+                time.sleep(30)  # Dwell time between presses
         self.blinds_lowered = False
         print("[TEST MODE] Blinds raised" if self.test_mode else "Blinds raised")
         return True
