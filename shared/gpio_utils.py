@@ -305,9 +305,11 @@ class GPIOController:
         """Raise the blinds"""
         print("[TEST MODE] Raising blinds" if self.test_mode else "Raising blinds")
         self.power_on_remote()
-        self.press_button_action("Up")
-        time.sleep(5)
-        self.press_button_action("Up")
+        # Send three Up presses spaced out by dwell time to give the motor time to respond
+        for attempt in range(3):
+            self.press_button_action("Up")
+            if attempt < 2:
+                time.sleep(10)  # Dwell time between presses
         self.blinds_lowered = False
         print("[TEST MODE] Blinds raised" if self.test_mode else "Blinds raised")
         return True
