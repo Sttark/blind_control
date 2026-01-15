@@ -234,6 +234,10 @@ def update_all_controller_status():
 def lower_blinds_on_all_controllers():
     global blinds_lowered
     
+    if blinds_lowered:
+        print("Blinds already lowered (hub state). Skipping lower command.")
+        return
+
     # Check if it's cloudy (above threshold)
     if is_overcast():
         print(f"Cloud cover is above threshold ({CLOUD_THRESHOLD}%). Skipping blind lowering.")
@@ -241,15 +245,30 @@ def lower_blinds_on_all_controllers():
     
     print("Lowering blinds on all controllers")
     
+    lowered_any = False
+    already_lowered_any = False
+
     for controller in config['controllers']:
         url = controller['url']
+        status = get_controller_status(url)
+        if status:
+            controller_status[url] = status
+
+        if status and status.get('blinds_lowered'):
+            already_lowered_any = True
+            print(f"Skipping {controller['name']} - already lowered per controller status.")
+            continue
+
         result = send_command_to_controller(url, "lower_blinds")
         if result and result.get('success'):
+            lowered_any = True
             print(f"Successfully lowered blinds on {controller['name']}")
         else:
             print(f"Failed to lower blinds on {controller['name']}")
-    
-    blinds_lowered = True
+
+    if lowered_any or already_lowered_any:
+        blinds_lowered = True
+        print("STATE: DOWN (hub)")
 
 # Function to raise blinds on all controllers
 def raise_blinds_on_all_controllers():
@@ -266,6 +285,7 @@ def raise_blinds_on_all_controllers():
             print(f"Failed to raise blinds on {controller['name']}")
     
     blinds_lowered = False
+    print("STATE: UP (hub)")
 
 # Function to schedule blind actions for the day
 def schedule_blind_actions():

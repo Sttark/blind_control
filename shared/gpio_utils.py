@@ -298,6 +298,7 @@ class GPIOController:
         self.power_on_remote()
         self.press_button_action("Down")
         self.blinds_lowered = True
+        print("STATE: DOWN (controller)")
         print("[TEST MODE] Blinds lowered" if self.test_mode else "Blinds lowered")
         return True
     
@@ -311,6 +312,7 @@ class GPIOController:
             if attempt < 2:
                 time.sleep(30)  # Dwell time between presses
         self.blinds_lowered = False
+        print("STATE: UP (controller)")
         print("[TEST MODE] Blinds raised" if self.test_mode else "Blinds raised")
         return True
     
