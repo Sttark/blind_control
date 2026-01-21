@@ -234,10 +234,6 @@ def update_all_controller_status():
 def lower_blinds_on_all_controllers():
     global blinds_lowered
     
-    if blinds_lowered:
-        print("Blinds already lowered (hub state). Skipping lower command.")
-        return
-
     # Check if it's cloudy (above threshold)
     if is_overcast():
         print(f"Cloud cover is above threshold ({CLOUD_THRESHOLD}%). Skipping blind lowering.")
@@ -245,30 +241,16 @@ def lower_blinds_on_all_controllers():
     
     print("Lowering blinds on all controllers")
     
-    lowered_any = False
-    already_lowered_any = False
-
     for controller in config['controllers']:
         url = controller['url']
-        status = get_controller_status(url)
-        if status:
-            controller_status[url] = status
-
-        if status and status.get('blinds_lowered'):
-            already_lowered_any = True
-            print(f"Skipping {controller['name']} - already lowered per controller status.")
-            continue
-
         result = send_command_to_controller(url, "lower_blinds")
         if result and result.get('success'):
-            lowered_any = True
             print(f"Successfully lowered blinds on {controller['name']}")
         else:
             print(f"Failed to lower blinds on {controller['name']}")
-
-    if lowered_any or already_lowered_any:
-        blinds_lowered = True
-        print("STATE: DOWN (hub)")
+    
+    blinds_lowered = True
+    print("STATE: DOWN (hub)")
 
 # Function to raise blinds on all controllers
 def raise_blinds_on_all_controllers():
@@ -335,11 +317,6 @@ def schedule_blind_actions():
 def monitor_cloud_cover():
     global blinds_lowered
     
-    # Add tracking variables for monitoring state
-    monitoring_active = False
-    initial_decision_made = False
-    monitoring_period_start = None
-    
     while True:
         # Skip cloud monitoring if in test mode
         if TEST_MODE_ENABLED:
@@ -362,55 +339,25 @@ def monitor_cloud_cover():
         # Check if we're in the monitoring period
         in_monitoring_period = monitoring_start <= now <= sunset
         
-        # Reset monitoring state if we're entering a new monitoring period
-        if in_monitoring_period and monitoring_period_start != monitoring_start.date():
-            monitoring_active = True
-            initial_decision_made = False
-            monitoring_period_start = monitoring_start.date()
-            print(f"Entering new monitoring period from {monitoring_start.strftime('%H:%M')} to {sunset.strftime('%H:%M')}")
-        
-        # Only monitor during relevant hours and if monitoring is still active
-        if in_monitoring_period and monitoring_active:
+        # Only monitor during relevant hours
+        if in_monitoring_period:
             cloud_cover, condition = get_cloud_cover()
             
             if cloud_cover is not None:
                 print(f"Current cloud cover: {cloud_cover}%, Condition: {condition}")
                 
-                # Make initial decision at start of monitoring period
-                if not initial_decision_made:
-                    initial_decision_made = True
-                    
-                    if cloud_cover < CLOUD_THRESHOLD:
-                        # It's sunny at start of period - lower blinds and stop monitoring
-                        print(f"Initial check: Sunny conditions ({cloud_cover}% < {CLOUD_THRESHOLD}%). Lowering blinds and stopping monitoring until raise time.")
+                if cloud_cover < CLOUD_THRESHOLD:
+                    if not blinds_lowered:
+                        print(f"Sunny conditions ({cloud_cover}% < {CLOUD_THRESHOLD}%). Lowering blinds.")
                         lower_blinds_on_all_controllers()
-                        monitoring_active = False  # Stop monitoring for this period
-                    else:
-                        # It's cloudy at start - keep blinds up and continue monitoring
-                        print(f"Initial check: Cloudy conditions ({cloud_cover}% >= {CLOUD_THRESHOLD}%). Keeping blinds up and continuing to monitor weather.")
-                        # Don't lower blinds, keep them up
-                
-                # Continue monitoring only if initial decision was to keep blinds up due to clouds
-                elif monitoring_active and not blinds_lowered:
-                    # If it becomes sunny during monitoring, lower blinds and stop monitoring
-                    if cloud_cover < CLOUD_THRESHOLD:
-                        print(f"Weather changed: Now sunny ({cloud_cover}% < {CLOUD_THRESHOLD}%). Lowering blinds and stopping monitoring until raise time.")
-                        lower_blinds_on_all_controllers()
-                        monitoring_active = False  # Stop monitoring for this period
-                
-                # Note: We never raise blinds during monitoring period based on weather
-                # Raising only happens at the scheduled raise time
-        
-        # Reset monitoring state when we exit the monitoring period
-        elif not in_monitoring_period:
-            monitoring_active = False
-            initial_decision_made = False
+                else:
+                    if blinds_lowered:
+                        print(f"Cloudy conditions ({cloud_cover}% >= {CLOUD_THRESHOLD}%). Raising blinds.")
+                        raise_blinds_on_all_controllers()
         
         # Reset blind state at the end of the day
         if now.hour >= 23:
             blinds_lowered = False
-            monitoring_active = False
-            initial_decision_made = False
             
         # Sleep for the monitoring interval
         time.sleep(MONITORING_INTERVAL * 60)
